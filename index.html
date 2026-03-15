@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GaiaNet Earth – Digital Twin of the Planet</title>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- CesiumJS -->
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.112/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.112/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <!-- Header / Nav -->
+    <header class="top-nav glass-panel">
+        <div class="logo">
+            <i class="fa-solid fa-earth-americas"></i>
+            <h1>GaiaNet Earth</h1>
+            <span class="subtitle">Digital Twin Dashboard</span>
+        </div>
+        <div class="nav-controls">
+            <button id="scenario-btn" class="btn primary-btn"><i class="fa-solid fa-flask"></i> What-If Scenarios</button>
+            <div class="status-indicator">
+                <span class="dot live"></span> Live Data Feed
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="dashboard-container">
+        
+        <!-- Left Panel: Layers -->
+        <aside class="panel left-panel glass-panel">
+            <h2><i class="fa-solid fa-layer-group"></i> Environmental Layers</h2>
+            
+            <div class="layer-group">
+                <h3>Atmosphere</h3>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="layer-temp">
+                    <span class="slider"></span>
+                    <span class="label-text"><i class="fa-solid fa-temperature-three-quarters"></i> Temperature Maps</span>
+                </label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="layer-co2">
+                    <span class="slider"></span>
+                    <span class="label-text"><i class="fa-solid fa-cloud"></i> CO₂ Concentration</span>
+                </label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="layer-pollution">
+                    <span class="slider"></span>
+                    <span class="label-text"><i class="fa-solid fa-smog"></i> Air Pollution</span>
+                </label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="layer-weather">
+                    <span class="slider"></span>
+                    <span class="label-text"><i class="fa-solid fa-cloud-showers-heavy"></i> Weather Systems</span>
+                </label>
+            </div>
+
+            <div class="layer-group">
+                <h3>Biosphere & Land</h3>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="layer-ndvi">
+                    <span class="slider"></span>
+                    <span class="label-text"><i class="fa-solid fa-leaf"></i> Vegetation Index (NDVI)</span>
+                </label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="layer-wildfires">
+                    <span class="slider"></span>
+                    <span class="label-text"><i class="fa-solid fa-fire"></i> Wildfire Locations</span>
+                </label>
+            </div>
+
+             <div class="layer-group">
+                <h3>Sensors</h3>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="layer-sensors" checked>
+                    <span class="slider"></span>
+                    <span class="label-text"><i class="fa-solid fa-tower-broadcast"></i> Environmental Sensors</span>
+                </label>
+            </div>
+            
+            <div id="scenario-panel" class="scenario-panel hidden">
+                 <h3>Simulate Scenarios</h3>
+                 <select id="scenario-select" class="dropdown">
+                     <option value="">Select a scenario...</option>
+                     <option value="temp_increase_1_5">+1.5°C Global Temp Increase</option>
+                     <option value="temp_increase_2_0">+2.0°C Global Temp Increase</option>
+                     <option value="deforestation_high">High Deforestation Rate</option>
+                 </select>
+                 <button id="run-scenario-btn" class="btn primary-btn mt-2">Run Simulation</button>
+                 <div id="simulation-results" class="simulation-results mt-2"></div>
+            </div>
+
+        </aside>
+
+        <!-- Center: 3D Globe -->
+        <section class="center-panel">
+            <div id="cesiumContainer"></div>
+            
+            <!-- Sensor Info Popup -->
+            <div id="sensor-popup" class="sensor-popup glass-panel hidden">
+                <button id="close-popup" class="close-btn"><i class="fa-solid fa-times"></i></button>
+                <h3 id="popup-title">Sensor Details</h3>
+                <div class="popup-content" id="popup-content">
+                    <!-- Dynamic content injected here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Panel: Analytics -->
+        <aside class="panel right-panel glass-panel">
+            <h2><i class="fa-solid fa-chart-line"></i> Analytics</h2>
+            <div class="location-summary" id="location-summary">
+                <p>Select a location or sensor on the globe to view analytics.</p>
+            </div>
+            
+            <div class="chart-container">
+                <canvas id="tempChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <canvas id="precipChart"></canvas>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span class="stat-label">Air Quality</span>
+                    <span class="stat-value" id="stat-aqi">--</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">CO₂ ppm</span>
+                    <span class="stat-value" id="stat-co2">--</span>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- Bottom: Timeline -->
+    <footer class="bottom-panel glass-panel">
+        <div class="timeline-controls">
+            <button class="icon-btn" id="play-btn"><i class="fa-solid fa-play"></i></button>
+            <div class="timeline-slider-container">
+                <span id="current-date-display">March 2026</span>
+                <input type="range" id="timeline-slider" min="0" max="100" value="100" class="timeline-slider">
+            </div>
+            <select id="speed-select" class="dropdown small-dropdown">
+                <option value="1">1x Speed</option>
+                <option value="2">2x Speed</option>
+                <option value="5">5x Speed</option>
+            </select>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/globe.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

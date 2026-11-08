@@ -1,105 +1,140 @@
-import random
 import json
 import logging
 from pathlib import Path
 import threading
+import time
 import math
 import requests
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 
-def _generate_fallback_data(lat: float, lon: float, months_back: int = 6) -> List[Dict[str, Any]]:
-    """Synthetic fallback if API fails."""
-    history = []
-    now = datetime.now(timezone.utc)
-    base_temp = 28.0 - (abs(lat) * 0.5) 
-    
-    for i in range(months_back - 1, -1, -1):
-        month_date = now - timedelta(days=30 * i)
-        month_idx = month_date.month
-        seasonal_offset = 10.0 * math.sin((month_idx - 4) * (2 * math.pi / 12))
-        if lat < 0: seasonal_offset *= -1
-        
-        temp = base_temp + seasonal_offset + random.uniform(-1, 1)
-        rainfall = max(20, 150 - abs(lat) * 1.5) + random.uniform(0, 50)
+# ---------------------------------------------------------------------------
+# Monthly climate trends (Insight charts + rainfall card)
+# ---------------------------------------------------------------------------
+# There is deliberately NO synthetic fallback here. An earlier version
+# replaced a failed/rate-limited archive request with a latitude/season
+# formula plus random noise, labelled "estimated". That still showed made-up
+# monthly numbers, so it was removed: a failure now returns no months and an
+# explicit reason, and the UI shows "n/a".
+#
+# The archive request (six months of daily data) was also re-issued on every
+# /climate and /prediction call, which set a ~3 s floor on warm requests.
+# Successful results are now cached. The archive lags ~5 days and changes at
+# most once a day, so a 6-hour cache never hides newer data for long; the end
+# date is part of the cache key, so a new day always triggers a fresh fetch.
+TRENDS_CACHE_TTL_S = 6 * 3600
+TRENDS_CACHE_DECIMALS = 2          # ~1 km; the ERA5 grid is ~25 km
+TRENDS_MAX_CACHE_ENTRIES = 256
+TRENDS_ARCHIVE_LAG_DAYS = 5
+_ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 
+_trends_cache: Dict[tuple, Tuple[float, List[Dict[str, Any]]]] = {}
+_trends_lock = threading.Lock()
+
+
+def _trends_cache_get(key: tuple) -> Optional[List[Dict[str, Any]]]:
+    with _trends_lock:
+        hit = _trends_cache.get(key)
+    if hit and time.time() - hit[0] < TRENDS_CACHE_TTL_S:
+        return hit[1]
+    return None
+
+
+def _trends_cache_put(key: tuple, history: List[Dict[str, Any]]) -> None:
+    with _trends_lock:
+        if key not in _trends_cache and len(_trends_cache) >= TRENDS_MAX_CACHE_ENTRIES:
+            _trends_cache.pop(next(iter(_trends_cache)))   # drop oldest inserted
+        _trends_cache[key] = (time.time(), history)
+
+
+def _summarize_monthly(daily: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Group Open-Meteo daily values into monthly summaries.
+
+    A month with no temperature values gets avg_temp_c = None (not 0.0), and
+    a month with no precipitation values gets total_rainfall_mm = None (not
+    0.0): a missing reading must never be shown as a measured zero.
+    """
+    times = daily.get('time') or []
+    temps = daily.get('temperature_2m_mean') or []
+    precip = daily.get('precipitation_sum') or []
+
+    monthly: Dict[str, Dict[str, Any]] = {}
+    for i, day in enumerate(times):
+        month_key = day[:7]  # YYYY-MM
+        m = monthly.setdefault(month_key, {"temps": [], "precip": 0.0, "precip_days": 0, "last_date": None})
+        t = temps[i] if i < len(temps) else None
+        if isinstance(t, (int, float)):
+            m["temps"].append(float(t))
+        p = precip[i] if i < len(precip) else None
+        if isinstance(p, (int, float)):
+            m["precip"] += float(p)
+            m["precip_days"] += 1
+            m["last_date"] = day
+
+    history: List[Dict[str, Any]] = []
+    for month in sorted(monthly):
+        m = monthly[month]
+        avg = round(sum(m["temps"]) / len(m["temps"]), 1) if m["temps"] else None
+        rain = round(m["precip"], 1) if m["precip_days"] else None
         history.append({
-            "month": month_date.strftime("%Y-%m"),
-            "avg_temp_c": round(temp, 1),
-            "total_rainfall_mm": round(max(0, rainfall), 1)
+            "month": month,
+            "avg_temp_c": avg,
+            "total_rainfall_mm": rain,
+            # Last day actually covered by the archive (it lags ~5 days),
+            # so the UI can label a partial month honestly.
+            "data_through": m["last_date"],
         })
     return history
 
-def get_live_climate_trends(lat: float, lon: float, months_back: int = 6) -> tuple:
-    """
-    Fetches real historical climate data from Open-Meteo Archive API.
-    Groups daily data into monthly summaries for the dashboard charts.
 
-    Returns (history, is_real) — is_real is False whenever the synthetic
-    fallback fired (rate limited or API error), so callers can label the
-    response honestly instead of always claiming live data regardless of
-    what actually happened.
+def get_live_climate_trends(lat: float, lon: float, months_back: int = 6,
+                            now: Optional[datetime] = None) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
-    # Archive has ~5 day lag, so we fetch up to 5 days ago
-    end_date = (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d')
-    start_date = (datetime.now() - timedelta(days=30 * months_back)).strftime('%Y-%m-%d')
-    
-    url = f"https://archive-api.open-meteo.com/v1/archive?latitude={lat}&longitude={lon}&start_date={start_date}&end_date={end_date}&daily=temperature_2m_mean,precipitation_sum&timezone=GMT"
-    
+    Monthly mean temperature and rainfall totals for the last `months_back`
+    months, from the Open-Meteo historical archive (ERA5-based).
+
+    Returns (history, status):
+      - success: (months, {"data_source": "real_openmeteo", "cached": bool})
+      - failure: ([],     {"data_source": "unavailable", "reason": "..."})
+    Never returns invented values.
+    """
+    now = now or datetime.now()
+    end_date = (now - timedelta(days=TRENDS_ARCHIVE_LAG_DAYS)).strftime('%Y-%m-%d')
+    start_date = (now - timedelta(days=30 * months_back)).strftime('%Y-%m-%d')
+    key = (round(lat, TRENDS_CACHE_DECIMALS), round(lon, TRENDS_CACHE_DECIMALS), months_back, end_date)
+
+    cached = _trends_cache_get(key)
+    if cached is not None:
+        return cached, {"data_source": "real_openmeteo", "cached": True}
+
+    params = {
+        "latitude": lat, "longitude": lon,
+        "start_date": start_date, "end_date": end_date,
+        "daily": "temperature_2m_mean,precipitation_sum", "timezone": "GMT",
+    }
     try:
-        logger.info(f"Fetching Open-Meteo data for {lat},{lon}")
-        response = requests.get(url, timeout=10)
-        
+        logger.info(f"Fetching Open-Meteo archive trends for {lat},{lon}")
+        response = requests.get(_ARCHIVE_URL, params=params, timeout=10)
         if response.status_code == 429:
-            logger.warning("Open-Meteo Rate Limited. Using fallback.")
-            return _generate_fallback_data(lat, lon, months_back), False
-            
+            logger.warning("Open-Meteo archive rate limited; monthly trends unavailable.")
+            return [], {"data_source": "unavailable",
+                        "reason": "Open-Meteo rate limit reached (HTTP 429); try again in a minute."}
         response.raise_for_status()
-        data = response.json()
-        
-        daily = data.get('daily', {})
-        times = daily.get('time', [])
-        temps = daily.get('temperature_2m_mean', [])
-        precip = daily.get('precipitation_sum', [])
-        
-        # Group by month
-        monthly_stats: Dict[str, Dict[str, Any]] = {}
-        for i in range(len(times)):
-            month_key = times[i][:7] # YYYY-MM
-            if month_key not in monthly_stats:
-                monthly_stats[month_key] = {"temps": [], "precip": 0.0, "last_date": None}
-            if i < len(precip) and precip[i] is not None:
-                monthly_stats[month_key]["last_date"] = times[i]
-            
-            if i < len(temps) and temps[i] is not None:
-                val = temps[i]
-                if isinstance(val, (int, float)):
-                    monthly_stats[month_key]["temps"].append(float(val))
-            if i < len(precip) and precip[i] is not None:
-                p_val = precip[i]
-                if isinstance(p_val, (int, float)):
-                    monthly_stats[month_key]["precip"] += float(p_val)
-        
-        history: List[Dict[str, Any]] = []
-        for month in sorted(monthly_stats.keys()):
-            t_list: List[float] = monthly_stats[month]["temps"]
-            avg_temp = sum(t_list) / len(t_list) if t_list else 0.0
-            history.append({
-                "month": month,
-                "avg_temp_c": round(float(avg_temp), 1),
-                "total_rainfall_mm": round(float(monthly_stats[month]["precip"]), 1),
-                # Last day actually covered by the archive (it lags ~5
-                # days), so the UI can label a partial month honestly.
-                "data_through": monthly_stats[month]["last_date"],
-            })
-            
-        return history, True
+        history = _summarize_monthly(response.json().get('daily') or {})
     except Exception as e:
-        logger.error(f"Open-Meteo API Error: {e}. Falling back to simulation.")
-        return _generate_fallback_data(lat, lon, months_back), False
+        logger.error(f"Open-Meteo archive error: {e}")
+        return [], {"data_source": "unavailable",
+                    "reason": f"Open-Meteo historical archive unreachable ({type(e).__name__})."}
+
+    if not history:
+        return [], {"data_source": "unavailable",
+                    "reason": "Open-Meteo returned no archive data for this point and period."}
+
+    _trends_cache_put(key, history)
+    return history, {"data_source": "real_openmeteo", "cached": False}
 
 GRID_STEP = 20  # Coarser grid for faster load
 GRID_CACHE_EXPIRY = 3600  # 1 hour — genuinely current conditions, refresh hourly
@@ -424,15 +459,14 @@ def get_location_climate(lat: float, lon: float) -> Dict[str, Any]:
     """
     Monthly history (archive) + REAL current temperature + REAL anomaly.
 
-    - historical_trends: monthly summaries (avg of daily MAX temperature,
-      total rainfall) — kept for the charts; NOT the current temperature.
+    - historical_trends: monthly summaries (mean daily temperature, total
+      rainfall) for the charts and the rainfall card; [] when the archive
+      is unavailable (never a synthetic substitute).
     - current: model-based current conditions at the exact coordinates
       (see services/current_conditions.py). This is what the Insight
       "Temperature" stat shows, matching how weather apps work.
     - current_anomaly: recent 7-day mean vs the 1991-2020 mean for the
-      same calendar days, both from the same reanalysis archive. Replaces
-      the old comparison of a monthly mean of daily MAXIMA against a
-      latitude/season formula (which produced e.g. +13 C for Nagpur).
+      same calendar days, both from the same reanalysis archive.
       None when it can't be computed — never a placeholder.
     The three upstream calls run in parallel.
     """
@@ -442,20 +476,22 @@ def get_location_climate(lat: float, lon: float) -> Dict[str, Any]:
         f_hist = pool.submit(get_live_climate_trends, lat, lon)
         f_cur = pool.submit(current_conditions.get_current_temperature, lat, lon)
         f_anom = pool.submit(current_conditions.get_temperature_anomaly, lat, lon)
-        history, is_real = f_hist.result()
+        history, trends_status = f_hist.result()
         current = f_cur.result()
         anomaly = f_anom.result()
 
+    available = trends_status.get("data_source") == "real_openmeteo"
     return {
         "location": {"lat": lat, "lon": lon},
         "historical_trends": history,
         "current": current,
         "current_anomaly": anomaly.get("anomaly_c"),
         "anomaly": anomaly,
-        "source": "Open-Meteo Live API" if is_real else "Estimated (Open-Meteo unavailable — seasonal/latitude model used instead)",
-        # data_source describes historical_trends only; current and
-        # anomaly carry their own data_source fields.
-        "data_source": "real_openmeteo" if is_real else "estimated_fallback"
+        "source": "Open-Meteo historical archive" if available else "Unavailable",
+        # data_source / trends_reason describe historical_trends only;
+        # current and anomaly carry their own data_source fields.
+        "data_source": trends_status.get("data_source", "unavailable"),
+        "trends_reason": trends_status.get("reason"),
     }
 
 

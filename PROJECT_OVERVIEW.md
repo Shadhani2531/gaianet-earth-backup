@@ -9,7 +9,7 @@ The project is built around one discipline, applied everywhere: **never present 
 - **Point analysis** — click or search any place for live temperature, the anomaly against its own 1991–2020 baseline, air quality, CO₂, rainfall, rain probability, NDVI and history charts.
 - **Same-name place handling** — "Aurangabad" lists every match instead of silently picking one; Enter always resolves to exactly what was typed.
 - **Forecasts** — 7-day weather, 5-day air quality and 7-day rain probability, each labelled with its date.
-- **Hazards** — active and recent events from GDACS and USGS, linked across sources, with impacts shown side by side and never summed.
+- **Hazards** — active and recent events from GDACS and USGS, linked across sources; each source's impacts shown separately, and a figure reported for several places shown as a range (largest single report – sum of the latest per place), never as one exact-looking total.
 - **Historical context** — the deadliest disasters (since 1900 or all recorded history), heatwaves (estimated excess deaths) and record holders, each with ranges and sources.
 - **Composite indices** — a disclosed Sustainability Health Index at point and country level.
 - **What-if simulation** — deforestation/emissions projections using cited, published coefficients.
@@ -26,7 +26,7 @@ The project is built around one discipline, applied everywhere: **never present 
 
 ## 4. What "AI" means here
 - **No trained forecasting or classification model is used.** Forecasts are Open-Meteo's real numerical weather prediction; the wildfire-risk score is a documented formula. Training a model without real labelled history would misrepresent its accuracy.
-- **Ask Gaia** is the one LLM feature. It must call this backend's own endpoints for every number. For ambiguous place names it lists the options rather than guessing, and it refuses near-spellings.
+- **Ask Gaia** is the one LLM feature. It must call this backend's own endpoints for every number, and reports the same air quality as the dashboard (WAQI → OpenAQ → CAMS model, labelled). For ambiguous place names it lists the options rather than guessing — unless one place is overwhelmingly the largest (≥100,000 people and ≥50× every namesake, e.g. New Delhi, Pune), which it answers for while saying which place it assumed. It refuses near-spellings, and the backend rejects any place name the user did not write (no silent spelling fixes or added countries). AQI categories and WHO guideline values come from the tools, not the model.
 - **The scenario simulator is not AI** — it applies cited coefficients to real current data and labels every output `measured`, `estimated` or `modeled`.
 
 ## 5. Architecture
@@ -34,7 +34,7 @@ The project is built around one discipline, applied everywhere: **never present 
 - **Disk caches** for data that never changes: 1991–2020 temperature baselines per location, and last-good snapshots of NOAA NCEI / USGS historical catalogues.
 - **Frontend:** vanilla JavaScript + CesiumJS (`js/`), one stylesheet (`css/style.css`).
 - **Persistence:** SQLite (`backend/reports.db`) for citizen reports.
-- **Tests:** `backend/tests/` (101 offline tests).
+- **Tests:** `backend/tests/` (150 offline tests).
 
 ## 6. Data-honesty rules (as implemented)
 - Every figure carries its source and an as-of date; live, archive, forecast, estimate and formula values are badged differently.

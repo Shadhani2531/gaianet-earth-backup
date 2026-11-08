@@ -1929,11 +1929,11 @@ class UIManager {
             // monthly figure once fetched successfully, so it always
             // reads LIVE here rather than tracking AQI's source.
             this._setStatBadge('stat-aqi', envData.data_source);
-            // CO2 always comes from a real NOAA GML reading (see
-            // mock_data.get_real_global_co2_ppm) — it's either today's
-            // fetch or the last successfully cached real value, never a
-            // fabricated fallback, so this always reads LIVE.
-            this._setStatBadge('stat-co2', 'live');
+            // CO2 is a real NOAA GML reading (today's fetch or the last
+            // real value this server fetched) or null when NOAA has been
+            // unreachable since start-up. Badge LIVE only for a real value.
+            const co2Available = envData.co2_ppm !== null && envData.co2_ppm !== undefined;
+            this._setStatBadge('stat-co2', co2Available ? 'live' : null);
         }
 
         if (ndviData) {
@@ -1953,8 +1953,9 @@ class UIManager {
             }
         }
 
-        // Update Charts
-        const history = climateData.historical_trends;
+        // Update Charts (empty when the archive is unavailable — the charts
+        // then show no bars rather than invented months)
+        const history = climateData.historical_trends || [];
         const labels = history.map(h => {
              const parts = h.month.split('-');
              const d = new Date(parts[0], parts[1]-1 || 0);
@@ -2002,8 +2003,13 @@ class UIManager {
         setTimeout(() => {
             if (scanOverlay) scanOverlay.classList.add('hidden');
 
-            const history = climateData.historical_trends;
-            const latest = history[history.length - 1];
+            const history = climateData.historical_trends || [];
+            const latest = history.length ? history[history.length - 1] : null;
+            // Recorded monthly rainfall is shown only when the archive
+            // actually returned it; otherwise "n/a" with the reason (the
+            // backend no longer substitutes a synthetic month).
+            const rainAvailable = climateData.data_source === 'real_openmeteo'
+                && !!latest && latest.total_rainfall_mm !== null && latest.total_rainfall_mm !== undefined;
 
             // Temperature = model-based CURRENT conditions at the exact
             // clicked coordinates (Open-Meteo current=, see backend
@@ -2030,11 +2036,15 @@ class UIManager {
                     tempSubEl.textContent = parts.join(' · ');
                 }
             }
-            document.getElementById('node-precip').innerText = `${latest.total_rainfall_mm}mm`;
+            document.getElementById('node-precip').innerText = rainAvailable ? `${latest.total_rainfall_mm}mm` : 'n/a';
             // This is the latest month's RECORDED total from the archive
             // (which lags ~5 days) — not rain falling now. Say so.
             const precipSubEl = document.getElementById('node-precip-sub');
-            if (precipSubEl) {
+            if (precipSubEl && !rainAvailable) {
+                precipSubEl.textContent = 'Monthly rainfall unavailable right now';
+                precipSubEl.title = climateData.trends_reason || '';
+            } else if (precipSubEl) {
+                precipSubEl.title = '';
                 const [yy, mm] = (latest.month || '').split('-').map(Number);
                 const monthName = (yy && mm) ? new Date(yy, mm - 1, 15).toLocaleDateString(undefined, { month: 'short' }) : '';
                 let label = monthName ? `${monthName} total` : 'Monthly total';
@@ -2117,8 +2127,9 @@ class UIManager {
             }
 
             // climateData.data_source is "real_openmeteo" or
-            // "estimated_fallback" — applies to temp/rainfall/anomaly,
-            // all three of which come from the same Open-Meteo call.
+            // "unavailable" and describes the monthly archive data
+            // (rainfall card, charts); current temperature and the
+            // anomaly carry their own data_source fields.
             // Temperature: LIVE only when current conditions actually came
             // back; no badge at all when unavailable (EST would imply a
             // fallback number is being shown, and none is).
@@ -2128,13 +2139,13 @@ class UIManager {
                 tempBadge.title = 'Model-based current conditions at these exact coordinates (Open-Meteo, ~15-min resolution). '
                     + 'Weather apps use similar models, so small differences (1–2 °C) between apps are normal.';
             }
-            // Recorded archive data, not a live reading: ARCHIVE badge
-            // (EST only if the synthetic fallback fired).
-            if (climateData.data_source === 'real_openmeteo') {
+            // Recorded archive data, not a live reading: ARCHIVE badge.
+            // No badge at all when unavailable (nothing is being shown).
+            if (rainAvailable) {
                 this._setArchiveBadge('node-precip', 'Recorded daily totals summed for the month '
                     + '(Open-Meteo historical archive, ~5-day lag). Not current rainfall.');
             } else {
-                this._setStatBadge('node-precip', climateData.data_source);
+                this._setStatBadge('node-precip', null);
             }
             // Anomaly is a derived comparison of real data, not a direct
             // reading (and the archive lags ~5 days) — FORMULA, not LIVE.
@@ -2169,7 +2180,8 @@ class UIManager {
                     if (envData.aqi_attempts && envData.aqi_attempts.length) tip += `\nSkipped: ${envData.aqi_attempts.join('; ')}`;
                     aqiBadge.title = tip;
                 }
-                this._setStatBadge('node-co2', 'live'); // real NOAA GML reading, see stat-co2 above
+                // LIVE only for a real NOAA GML reading; no badge when null.
+                this._setStatBadge('node-co2', (envData.co2_ppm !== null && envData.co2_ppm !== undefined) ? 'live' : null);
 
                 // AQI color + category, reusing the same _aqiColor() scale
                 // already driving the forecast chart bars and globe dots.

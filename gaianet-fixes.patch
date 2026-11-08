@@ -1,0 +1,2494 @@
+diff --git a/.gitattributes b/.gitattributes
+new file mode 100644
+index 0000000..aaaac07
+--- /dev/null
++++ b/.gitattributes
+@@ -0,0 +1,2 @@
++# Windows batch files must keep CRLF line endings
++*.bat text eol=crlf
+diff --git a/.github/workflows/tests.yml b/.github/workflows/tests.yml
+new file mode 100644
+index 0000000..0d6c439
+--- /dev/null
++++ b/.github/workflows/tests.yml
+@@ -0,0 +1,27 @@
++# Runs GaiaNet Earth's offline test suite on every push and pull request.
++# The tests need no network access and no API keys.
++name: tests
++
++on:
++  push:
++  pull_request:
++
++jobs:
++  offline-tests:
++    runs-on: ubuntu-latest
++    defaults:
++      run:
++        working-directory: backend
++    steps:
++      - uses: actions/checkout@v4
++      - uses: actions/setup-python@v5
++        with:
++          python-version: "3.11"
++          cache: pip
++          cache-dependency-path: backend/requirements.txt
++      - name: Install dependencies
++        run: pip install -r requirements.txt
++      - name: Compile all Python files
++        run: python -m compileall -q .
++      - name: Run offline tests
++        run: python -m unittest discover -s tests -t . -v
+diff --git a/.gitignore b/.gitignore
+index df0af48..2a19aad 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -18,6 +18,8 @@ backend/data/historical_cache/*
+ backend/data/anomaly_baseline_cache/*
+ !backend/data/anomaly_baseline_cache/.gitignore
+ backend/data/cache/
++# Evaluation downloads (re-created by the eval scripts; results/ IS committed)
++backend/eval/data/
+ *.tmp
+ 
+ # IDEs
+diff --git a/PROJECT_OVERVIEW.md b/PROJECT_OVERVIEW.md
+index 96f728f..b0e7d11 100644
+--- a/PROJECT_OVERVIEW.md
++++ b/PROJECT_OVERVIEW.md
+@@ -34,7 +34,7 @@ The project is built around one discipline, applied everywhere: **never present
+ - **Disk caches** for data that never changes: 1991–2020 temperature baselines per location, and last-good snapshots of NOAA NCEI / USGS historical catalogues.
+ - **Frontend:** vanilla JavaScript + CesiumJS (`js/`), one stylesheet (`css/style.css`).
+ - **Persistence:** SQLite (`backend/reports.db`) for citizen reports.
+-- **Tests:** `backend/tests/` (101 offline tests).
++- **Tests:** `backend/tests/` (117 offline tests).
+ 
+ ## 6. Data-honesty rules (as implemented)
+ - Every figure carries its source and an as-of date; live, archive, forecast, estimate and formula values are badged differently.
+diff --git a/PROJECT_PHASES.md b/PROJECT_PHASES.md
+index cbcb527..caf4d26 100644
+--- a/PROJECT_PHASES.md
++++ b/PROJECT_PHASES.md
+@@ -28,7 +28,8 @@ The checklist view of the project. Details per data layer live in [`PROJECT_STAT
+ - [x] Same-name place disambiguation; Enter never replaces the typed name; suggestions only on explicit selection
+ - [x] Ask Gaia lists ambiguous places instead of guessing
+ - [x] Source/date badges: LIVE, ARCHIVE, FORECAST, EST, FORMULA
+-- [x] Offline test suite (101 tests)
++- [x] Offline test suite (117 tests)
++- [x] No synthetic fallbacks left: monthly climate trends and CO₂ show "unavailable" instead of a made-up value; archive trend request cached (6 h)
+ 
+ ### Phase 5 — Disasters & Hazards ✅
+ - [x] Active now (source status + end dates) and Previous (7 / 30 days / custom)
+@@ -54,7 +55,8 @@ The checklist view of the project. Details per data layer live in [`PROJECT_STAT
+ ### Platform
+ - [ ] AR/VR model of Earth for Android devices (faculty request; AR preferred)
+ - [ ] Mobile layout and accessibility pass
+-- [ ] CI to run the test suite automatically
++- [x] CI to run the test suite automatically (GitHub Actions)
++- [x] Evaluation scripts: 12-month hazard evaluation, Ask Gaia grounding (`backend/eval/`)
+ - [ ] Broader Global Health Index coverage
+ 
+ ### Deliberately not planned
+diff --git a/PROJECT_STATUS.md b/PROJECT_STATUS.md
+index d454150..bfcc738 100644
+--- a/PROJECT_STATUS.md
++++ b/PROJECT_STATUS.md
+@@ -24,11 +24,11 @@ An honest snapshot of the current code (October 2026). If this file and the code
+ | **Current temperature** | Open-Meteo current conditions | Live (model, ~15 min) | Exact point; shows "feels like" and local as-of time |
+ | **Temperature anomaly** | Open-Meteo ERA5 archive | Derived | Last 7 days of daily-mean temperature minus the 1991–2020 mean for the same calendar days. Baselines cached per location on disk |
+ | **Temperature History** | Open-Meteo ERA5 archive | Archive | 7-day mean around today's date in fixed reference years |
+-| **Monthly chart** | Open-Meteo ERA5 archive | Archive | Monthly mean temperature and rainfall totals |
+-| **Rainfall card** | Open-Meteo ERA5 archive | Archive | Month-to-date total, with "to <date>" |
++| **Monthly chart** | Open-Meteo ERA5 archive | Archive | Monthly mean temperature and rainfall totals. Cached 6 h per point; if the archive fails the chart is empty and the reason is returned — no synthetic months |
++| **Rainfall card** | Open-Meteo ERA5 archive | Archive | Month-to-date total, with "to <date>"; "n/a" when the archive is unavailable |
+ | **Rain probability** | Open-Meteo forecast | Forecast (NWP) | Next 24 h hourly + 7-day daily maximum; nulls stay blank |
+ | **Air quality** | WAQI → OpenAQ v3 → Copernicus CAMS | Live, then model | WAQI station ≤50 km and <24 h; else OpenAQ ≤25 km; else CAMS model (badged EST). The source is always named |
+-| **CO₂** | NOAA GML | Live (monthly) | Global monthly mean |
++| **CO₂** | NOAA GML | Live (monthly) | Global monthly mean; last real reading if NOAA is briefly unreachable, otherwise "--" (no hardcoded value) |
+ | **NDVI** | NASA MODIS MOD13Q1 (ORNL DAAC) | Live (16-day) | Latest available composite |
+ | **Wildfires** | NASA FIRMS | Live | |
+ | **Satellite imagery** | NASA GIBS | Live tiles | |
+@@ -60,7 +60,7 @@ The verified baseline (`backend/data/historical_baseline.json`) holds 22 entries
+ 
+ ## Known gaps
+ 
+-- No authentication and no CI pipeline (the 101 offline tests run manually).
++- No authentication. The 117 offline tests run on GitHub Actions on every push (`.github/workflows/tests.yml`).
+ - Open-Meteo free tier (10,000 calls/day, 600/min) limits heavy use; limits surface as "unavailable", never as guessed values.
+ - Historical floods, cyclones and heatwaves come from a small curated baseline, so those hazards are incomplete; heatwave studies are mostly European.
+ - Global Health Index covers ~90 countries (those with a capital in `country_coords.py`).
+diff --git a/README.md b/README.md
+index 7b41e67..2d3565f 100644
+--- a/README.md
++++ b/README.md
+@@ -35,9 +35,9 @@ It is an academic/portfolio project, not an official monitoring or warning syste
+ 
+ ```
+ cd backend
+-python -m unittest tests.test_temperature_anomaly tests.test_historical tests.test_disasters_rasuwa
++python -m unittest discover -s tests -t .
+ ```
+-101 tests, no network needed. They include a regression suite built from the real 26 Aug 2026 Rasuwa / Bhote Koshi (Nepal) disaster data.
++117 tests, no network needed; they also run automatically on GitHub Actions on every push. They include a regression suite built from the real 26 Aug 2026 Rasuwa / Bhote Koshi (Nepal) disaster data.
+ 
+ ## Documentation
+ 
+@@ -46,5 +46,6 @@ python -m unittest tests.test_temperature_anomaly tests.test_historical tests.te
+ - [`PROJECT_STATUS.md`](PROJECT_STATUS.md) — every data layer: source, status, caveats
+ - [`PROJECT_PHASES.md`](PROJECT_PHASES.md) — feature checklist and roadmap
+ - [`EXTENSION_INTEGRATION.md`](EXTENSION_INTEGRATION.md) — companion Chrome extension
++- [`backend/eval/README.md`](backend/eval/README.md) — evaluation scripts (12-month hazard evaluation, Ask Gaia grounding)
+ 
+ > Disaster information is shown for awareness only. It is **not an official warning system** — always follow national authorities.
+diff --git a/RUN_INSTRUCTIONS.md b/RUN_INSTRUCTIONS.md
+index 4196f94..23e608d 100644
+--- a/RUN_INSTRUCTIONS.md
++++ b/RUN_INSTRUCTIONS.md
+@@ -5,9 +5,13 @@ One FastAPI server serves both the API and the frontend, so there is only one th
+ ## Quick start (Windows)
+ 
+ Double-click **`start_project.bat`** in the project root. It:
+-1. creates `backend/venv` (first run only) and installs `backend/requirements.txt`;
+-2. starts the server in a new window;
+-3. opens **http://localhost:8000** in your browser.
++1. stops any old server still running on port 8000 (an old process keeps serving old code);
++2. creates `backend/venv` on the first run, and runs `pip install` only when `backend/requirements.txt` has changed;
++3. creates `backend/.env` from `.env.example` if it is missing;
++4. starts the server in a minimised **GaiaNet Earth Server** window;
++5. opens **http://localhost:8000** as soon as the server answers, then closes itself.
++
++To stop the server, close the **GaiaNet Earth Server** window.
+ 
+ ## Manual start (any OS)
+ 
+@@ -43,15 +47,22 @@ Open-Meteo, NOAA, NASA, GDACS and USGS need no key.
+ 
+ ```powershell
+ cd backend
+-python -m unittest tests.test_temperature_anomaly tests.test_historical tests.test_disasters_rasuwa
++python -m unittest discover -s tests -t .
++```
++Expected: `Ran 117 tests ... OK`. No network access is needed.
++
++## Latency benchmark
++
++```powershell
++# close the "GaiaNet Earth Server" window first: the benchmark starts its own server on port 8000
++python benchmark_latency.py       # from the project root, venv active
+ ```
+-Expected: `Ran 101 tests ... OK`. No network access is needed.
++Reports the first request (empty in-memory caches) and requests 2–10 separately for `/climate`, `/prediction` and `/environment`. Upstream APIs are called live, so results depend on your network.
+ 
+ ## After updating any files
+ 
+-1. Stop every Python process: `taskkill /F /IM python.exe`
+-2. Start again with `start_project.bat`
+-3. Hard-refresh the browser: **Ctrl + Shift + R**
++1. Double-click `start_project.bat` again — it replaces the old server automatically
++2. Hard-refresh the browser: **Ctrl + Shift + R**
+ 
+ An old server process left running keeps serving old code — if a traceback's line numbers don't match the file, that is the cause.
+ 
+@@ -77,6 +88,6 @@ An old server process left running keeps serving old code — if a traceback's l
+ |---|---|
+ | Changes not visible | Restart the server (see above) and hard-refresh |
+ | "Could not reach the backend" | The server window is closed or crashed — check it for errors |
+-| Port 8000 in use | `taskkill /F /IM python.exe`, then start again |
++| Port 8000 in use | Run `start_project.bat` again — it stops whatever is listening on port 8000 first |
+ | Values show "n/a" / unavailable | Usually a free-tier rate limit; the reason is shown on hover or in the server log |
+ | Historical view slow the first time | It downloads NOAA's full catalogues once, then serves the saved copy |
+diff --git a/backend/eval/README.md b/backend/eval/README.md
+new file mode 100644
+index 0000000..594252a
+--- /dev/null
++++ b/backend/eval/README.md
+@@ -0,0 +1,53 @@
++# Evaluations
++
++Two scripts that measure GaiaNet Earth's main claims on real data. Both run
++from `backend/` with the virtual environment active, reuse GaiaNet's own code
++(nothing is re-implemented or changed), and save everything they download, so
++a stopped run can simply be started again.
++
++```powershell
++cd backend
++venv\Scripts\activate
++```
++
++## 1. Hazard reconciliation over 12 months — `eval_hazards.py`
++
++```powershell
++python eval\eval_hazards.py
++```
++
++Downloads the last 12 full months of GDACS and USGS records (about 1,000
++requests; roughly 10–20 minutes, mostly polite pauses) and measures:
++
++| | What it measures |
++|---|---|
++| E1 | Earthquake duplicate matching: precision/recall against GDACS's own source id, a threshold grid, and how many quakes would be listed twice without matching |
++| E2 | "Active now": GaiaNet's rule vs "started in the last 7 days" and "GDACS flag only", at the moment of the run |
++| E3 | How far GDACS's single flood/drought point can be from its own affected area; flood–landslide links |
++| E4 | Impact rows: naive summing vs GaiaNet's latest-per-indicator rule |
++| E5 | "Magnitude 0" severities on floods and droughts |
++
++Results: `eval/results/hazards_<start>_<end>.json` and `..._summary.md`.
++Re-analyse without downloading: `python eval\eval_hazards.py --offline`.
++Each run also appends its E2 snapshot to `eval/results/hazard_snapshots.jsonl`;
++running it on a few different days gives a stronger E2 result.
++
++## 2. Ask Gaia grounding — `eval_gaia.py`
++
++Needs `GAIA_LLM_API_KEY` in `backend/.env`. For a reproducible run, set
++`GAIA_LLM_MODEL` to one specific model that supports tool calling instead of
++a router that switches models; the summary lists the models actually used.
++
++```powershell
++python eval\eval_gaia.py
++```
++
++Asks the 40 questions in `gaia_questions.json` to Ask Gaia and, as a
++baseline, to the same model without tools. About 150–200 model calls in
++total, 4 s apart. If the provider's daily free limit stops the run, run the
++same command again later — finished answers are kept and skipped.
++
++Results: `eval/results/gaia_eval_summary.md` and `gaia_eval_review.csv`.
++Scores are automatic; open the CSV, check each reply and fill in
++`manual_pass` (Y/N). Report the checked figures.
++Rebuild the summary without new calls: `python eval\eval_gaia.py --report`.
+diff --git a/backend/eval/eval_gaia.py b/backend/eval/eval_gaia.py
+new file mode 100644
+index 0000000..f36fff7
+--- /dev/null
++++ b/backend/eval/eval_gaia.py
+@@ -0,0 +1,395 @@
++"""
++Grounding evaluation for Ask Gaia.
++
++Runs every question in eval/gaia_questions.json through two systems that
++use the SAME language model and endpoint (GAIA_LLM_* in backend/.env):
++
++  gaia      Ask Gaia exactly as shipped: GaiaNet's system prompt + tools that
++            call GaiaNet's own endpoints (services/gaia_agent.py).
++  baseline  The same model as a plain chatbot: generic prompt, no tools.
++
++and measures, per category:
++  - value claims  numbers stated as environmental values (°C, %, mm, AQI,
++                  µg/m³, scores ...); for gaia each is checked against the
++                  numbers its tools actually returned; for the baseline,
++                  which has no data access, every such value is unsupported
++  - B  asks which place is meant (or names it fully) instead of guessing
++  - C  says the place could not be found instead of answering
++  - D  states its method/limits correctly (keyword check)
++  - E  with a tool forced to fail, says the data is unavailable
++
++Scores are automatic and approximate. Every reply is also written to a
++review CSV with columns for manual correction; report the corrected figures.
++
++Product code is NOT modified: the tools and the HTTP call are wrapped here
++to record what each tool returned and to inject failures for category E.
++
++Resumable: answers are appended to eval/results/gaia_eval_answers.jsonl and
++skipped on the next run, so a run stopped by rate limits can be continued.
++
++Run from backend/ (venv active):
++    python eval/eval_gaia.py                    # both systems, all questions
++    python eval/eval_gaia.py --systems gaia     # only one system
++    python eval/eval_gaia.py --report           # rebuild summary from saved answers
++Pin one model for a reproducible run, e.g. set GAIA_LLM_MODEL in backend/.env
++to a specific tool-capable model rather than a router that changes models.
++"""
++import argparse
++import csv
++import json
++import re
++import sys
++import time
++import types
++from collections import defaultdict
++from datetime import datetime, timezone
++from pathlib import Path
++from typing import Any, Dict, List, Optional
++
++import requests
++
++BACKEND = Path(__file__).resolve().parents[1]
++sys.path.insert(0, str(BACKEND))
++
++try:
++    from dotenv import load_dotenv
++    load_dotenv(BACKEND / ".env")
++except Exception:
++    pass
++
++from services import gaia_agent as g  # noqa: E402
++
++QUESTIONS = BACKEND / "eval" / "gaia_questions.json"
++RESULTS_DIR = BACKEND / "eval" / "results"
++ANSWERS = RESULTS_DIR / "gaia_eval_answers.jsonl"
++BASELINE_PROMPT = "You are a helpful assistant."
++
++# ---------------------------------------------------------------------------
++# value-claim extraction and grounding
++# ---------------------------------------------------------------------------
++_NUM = r"(-?\d{1,4}(?:[.,]\d+)?)"
++_UNIT = (r"(\s*(?:°|º|˚)\s*(?:[CF]\b)?|\s*degrees?(?:\s*(?:celsius|fahrenheit|c|f))?\b|\s*%|\s*percent\b|"
++         r"\s*mm\b|\s*millimet(?:er|re)s?\b|\s*km/?h\b|\s*kph\b|\s*mph\b|\s*m/s\b|\s*(?:µ|μ|u)g/m(?:³|3)|\s*ppm\b)")
++# (pattern, unit kind or None = read it from the matched unit text)
++_PATTERNS = [
++    (re.compile(_NUM + _UNIT, re.I), None),
++    (re.compile(r"\b(?:AQI|air quality index)\b[^0-9\n]{0,30}?" + _NUM, re.I), "aqi"),
++    (re.compile(r"\b(?:PM2\.5|PM10)\b[^0-9\n]{0,30}?" + _NUM, re.I), "conc"),
++    (re.compile(_NUM + r"\s*\(?\s*(?:on the\s*)?(?:US\s*)?AQI\b", re.I), "aqi"),
++    (re.compile(_NUM + r"\s*(?:/|out of)\s*100\b", re.I), "score"),
++    (re.compile(r"\b(?:risk|danger|fire)\s*(?:score|index)\b[^0-9\n]{0,15}?" + _NUM, re.I), "score"),
++]
++
++
++def _unit_kind(text: str) -> str:
++    t = (text or "").strip().lower()
++    if t.endswith("f") or "fahrenheit" in t:
++        return "F"
++    if t.startswith(("°", "º", "˚", "degree")):
++        return "C"
++    if t in ("%", "percent"):
++        return "%"
++    if t.startswith("mm") or t.startswith("millimet"):
++        return "mm"
++    if t in ("km/h", "kmh", "kph", "mph", "m/s"):
++        return "speed"
++    if t == "ppm":
++        return "ppm"
++    return "conc"
++
++
++def value_claims(text: str) -> List[Dict[str, Any]]:
++    """Numbers stated as environmental values, each with its unit kind."""
++    seen, out = set(), []
++    for pat, kind in _PATTERNS:
++        for m in pat.finditer(text or ""):
++            if m.start(1) in seen:
++                continue
++            try:
++                v = float(m.group(1).replace(",", "."))
++            except ValueError:
++                continue
++            seen.add(m.start(1))
++            out.append({"v": v, "unit": kind or _unit_kind(m.group(2))})
++    return out
++
++
++def _flatten_numbers(obj: Any, out: List[float]) -> None:
++    if isinstance(obj, bool) or obj is None:
++        return
++    if isinstance(obj, (int, float)):
++        out.append(float(obj))
++    elif isinstance(obj, str):
++        try:
++            out.append(float(obj))
++        except ValueError:
++            pass
++    elif isinstance(obj, dict):
++        for v in obj.values():
++            _flatten_numbers(v, out)
++    elif isinstance(obj, (list, tuple)):
++        for v in obj:
++            _flatten_numbers(v, out)
++
++
++def is_supported(claim: Dict[str, Any], tool_numbers: List[float]) -> bool:
++    """A claim is supported if some number the system was given matches it
++    (rounding allowed); unit conversions apply only to the unit stated."""
++    v, unit = claim["v"], claim["unit"]
++    for t in tool_numbers:
++        if unit == "F":
++            if abs(v - (t * 9 / 5 + 32)) <= 1.0 or abs(v - t) <= 0.6:
++                return True
++        elif abs(v - t) <= max(0.6, 0.02 * abs(t)):
++            return True
++        elif unit == "%" and 0 <= t <= 1 and abs(v - t * 100) <= 1.0:
++            return True
++        elif unit == "speed" and (abs(v - t * 3.6) <= 1.0 or abs(v - t / 1.609) <= 1.0):
++            return True
++    return False
++
++
++_RE_CLARIFY = re.compile(r"which (one|place|city|location|.{0,25} do you mean)|did you mean|several (places|locations|cities)|"
++                         r"more than one|multiple (places|locations|cities)|could you (specify|clarify|tell me which)|"
++                         r"please (specify|clarify|let me know which)", re.I)
++_RE_NOTFOUND = re.compile(r"couldn'?t find|could not find|can'?t find|cannot find|wasn'?t able to find|unable to (find|locate)|"
++                          r"no (exact )?(match|place|location|city)|not (able to )?(find|locate)|doesn'?t (seem to )?exist|"
++                          r"not a real|fictional|did you mean", re.I)
++_RE_UNAVAILABLE = re.compile(r"couldn'?t|could not|unavailable|not available|unable to|can'?t (get|retrieve|access|fetch)|"
++                             r"isn'?t available|no (live |current )?data|didn'?t (return|get)|failed", re.I)
++
++
++def score_answer(item: Dict[str, Any], system: str, reply: str, trace: List[Dict[str, Any]]) -> Dict[str, Any]:
++    claims = value_claims(reply)
++    # Numbers the system was actually given: tool results and arguments, plus
++    # map-context coordinates. The baseline has no tools, so only the latter.
++    nums: List[float] = []
++    for t in trace:
++        _flatten_numbers(t["result"], nums)
++        _flatten_numbers(t["args"], nums)
++    _flatten_numbers(item.get("context") or {}, nums)
++    unsupported = [v for v in claims if not is_supported(v, nums)]
++    cat = item["category"]
++    s: Dict[str, Any] = {"value_claims": claims, "unsupported_claims": unsupported,
++                         "has_unsupported": bool(unsupported)}
++    if cat == "B":
++        ambiguous = any(isinstance(t["result"], dict) and t["result"].get("ambiguous") for t in trace)
++        s["tool_reported_ambiguous"] = ambiguous
++        s["asked_which"] = bool(_RE_CLARIFY.search(reply))
++        s["pass"] = (s["asked_which"] and not claims) or (not ambiguous and bool(claims) and not unsupported
++                                                        and system == "gaia")
++    elif cat == "C":
++        s["said_not_found"] = bool(_RE_NOTFOUND.search(reply))
++        s["pass"] = s["said_not_found"] and not claims
++    elif cat == "D":
++        s["pass"] = bool(re.search(item.get("expect", "$^"), reply, re.I))
++    elif cat == "E":
++        s["said_unavailable"] = bool(_RE_UNAVAILABLE.search(reply))
++        s["pass"] = s["said_unavailable"] and not unsupported
++    else:  # A
++        s["answered_with_values"] = bool(claims)
++        s["pass"] = bool(claims) and not unsupported
++    return s
++
++
++# ---------------------------------------------------------------------------
++# running the two systems
++# ---------------------------------------------------------------------------
++
++class RateLimitedPost:
++    """Wraps requests.post: paces calls, retries 429/5xx, records the model served."""
++
++    def __init__(self, pace_s: float, max_retries: int):
++        self.pace_s, self.max_retries = pace_s, max_retries
++        self.models: List[str] = []
++        self.calls = 0
++
++    def __call__(self, *args, **kwargs):
++        for attempt in range(self.max_retries + 1):
++            time.sleep(self.pace_s)
++            resp = requests.post(*args, **kwargs)
++            self.calls += 1
++            if resp.status_code == 429 or resp.status_code >= 500:
++                wait = min(120, 10 * (2 ** attempt))
++                print(f"      LLM HTTP {resp.status_code}; waiting {wait}s (attempt {attempt + 1}/{self.max_retries})")
++                time.sleep(wait)
++                continue
++            try:
++                self.models.append(resp.json().get("model") or "?")
++            except Exception:
++                pass
++            return resp
++        return resp
++
++
++def run_gaia(item: Dict[str, Any], poster: RateLimitedPost) -> Dict[str, Any]:
++    trace: List[Dict[str, Any]] = []
++    original = dict(g._TOOL_DISPATCH)
++    inject = item.get("inject")
++
++    def wrap(name):
++        def call(args):
++            if inject and inject.get("tool") == name:
++                result = inject["result"]
++            else:
++                try:
++                    result = original[name](args)
++                except Exception as e:      # gaia_agent reports it as an error; record it too
++                    trace.append({"tool": name, "args": args, "result": {"error": str(e)}, "injected": False})
++                    raise
++            trace.append({"tool": name, "args": args, "result": result, "injected": bool(inject and inject.get("tool") == name)})
++            return result
++        return call
++
++    poster.models.clear()
++    g._TOOL_DISPATCH.update({n: wrap(n) for n in original})
++    saved_requests = g.requests
++    g.requests = types.SimpleNamespace(post=poster)
++    try:
++        out = g.chat(item["q"], history=None, context=item.get("context"))
++    finally:
++        g.requests = saved_requests
++        g._TOOL_DISPATCH.clear()
++        g._TOOL_DISPATCH.update(original)
++    return {"reply": out.get("reply", ""), "status": out.get("status"), "trace": trace,
++            "models": list(poster.models)}
++
++
++def run_baseline(item: Dict[str, Any], poster: RateLimitedPost) -> Dict[str, Any]:
++    cfg = g._config()
++    poster.models.clear()
++    messages = [{"role": "system", "content": BASELINE_PROMPT}, {"role": "user", "content": item["q"]}]
++    if item.get("context"):
++        messages[1]["content"] += f" (My location: lat {item['context']['lat']}, lon {item['context']['lon']}.)"
++    try:
++        resp = poster(f"{cfg['base_url']}/chat/completions",
++                      headers={"Authorization": f"Bearer {cfg['api_key']}", "Content-Type": "application/json"},
++                      json={"model": cfg["model"], "messages": messages}, timeout=60)
++        resp.raise_for_status()
++        reply = (resp.json()["choices"][0]["message"].get("content") or "").strip()
++        status = "ok"
++    except Exception as e:
++        reply, status = "", f"llm_unavailable: {e}"
++    return {"reply": reply, "status": status, "trace": [], "models": list(poster.models)}
++
++
++# ---------------------------------------------------------------------------
++# report
++# ---------------------------------------------------------------------------
++
++def load_answers() -> List[Dict[str, Any]]:
++    if not ANSWERS.exists():
++        return []
++    return [json.loads(line) for line in ANSWERS.read_text(encoding="utf-8").splitlines() if line.strip()]
++
++
++_OK = ("ok", "max_iterations_reached")
++
++
++def latest_ok(answers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
++    """Latest successful answer per (system, question)."""
++    latest = {}
++    for a in answers:
++        if a["status"] in _OK:
++            latest[(a["system"], a["id"])] = a
++    return list(latest.values())
++
++
++def report(all_answers: List[Dict[str, Any]]) -> str:
++    answers = latest_ok(all_answers)
++    pending = {(a["system"], a["id"]) for a in all_answers} - {(a["system"], a["id"]) for a in answers}
++    by = defaultdict(list)
++    for a in answers:
++        by[(a["system"], a["category"])].append(a)
++    names = {"A": "A  needs live numbers", "B": "B  ambiguous place", "C": "C  place not found",
++             "D": "D  methods and limits", "E": "E  tool failure injected"}
++    L = ["# Ask Gaia grounding evaluation (automatic scores — verify with the review CSV)", ""]
++    models = sorted({m for a in answers for m in a.get("models", [])})
++    L += [f"Models served: {', '.join(models) or 'n/a'}",
++          f"Scored answers: {len(answers)} · still failing (re-run to retry): {len(pending)}", "",
++          "| Category | System | n | Pass | With unsupported values | Value claims (unsupported) |",
++          "|---|---|---|---|---|---|"]
++    for cat in "ABCDE":
++        for system in ("gaia", "baseline"):
++            rows = by.get((system, cat), [])
++            if not rows:
++                continue
++            n = len(rows)
++            passed = sum(1 for r in rows if r["score"]["pass"])
++            unsup_q = sum(1 for r in rows if r["score"]["has_unsupported"])
++            claims = sum(len(r["score"]["value_claims"]) for r in rows)
++            unsup = sum(len(r["score"]["unsupported_claims"]) for r in rows)
++            L.append(f"| {names[cat]} | {system} | {n} | {passed} ({100 * passed / n:.0f}%) | "
++                     f"{unsup_q} ({100 * unsup_q / n:.0f}%) | {claims} ({unsup}) |")
++    tools = [a for a in answers if a["system"] == "gaia" and a["category"] in "AB"]
++    if tools:
++        used = sum(1 for a in tools if a["trace"])
++        L += ["", f"Gaia called at least one tool in {used} of {len(tools)} category A/B questions."]
++    return "\n".join(L)
++
++
++def write_review_csv(answers: List[Dict[str, Any]], path: Path) -> None:
++    with open(path, "w", newline="", encoding="utf-8-sig") as fh:
++        w = csv.writer(fh)
++        w.writerow(["id", "category", "system", "question", "reply", "tools_called", "value_claims",
++                    "unsupported_claims", "auto_pass", "manual_pass (fill Y/N)", "notes"])
++        for a in answers:
++            w.writerow([a["id"], a["category"], a["system"], a["question"], a["reply"],
++                        "; ".join(t["tool"] + (" [INJECTED]" if t.get("injected") else "") for t in a["trace"]),
++                        " ".join(f"{c['v']:g}{c['unit']}" for c in a["score"]["value_claims"]),
++                        " ".join(f"{c['v']:g}{c['unit']}" for c in a["score"]["unsupported_claims"]),
++                        "Y" if a["score"]["pass"] else "N", "", ""])
++
++
++def main(argv=None) -> None:
++    ap = argparse.ArgumentParser(description="Ask Gaia grounding evaluation")
++    ap.add_argument("--systems", default="gaia,baseline")
++    ap.add_argument("--only", help="comma-separated question ids")
++    ap.add_argument("--limit", type=int, help="stop after this many new answers")
++    ap.add_argument("--pace", type=float, default=4.0, help="seconds between LLM calls")
++    ap.add_argument("--max-retries", type=int, default=5)
++    ap.add_argument("--report", action="store_true", help="only rebuild the summary from saved answers")
++    args = ap.parse_args(argv)
++
++    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
++    if not args.report:
++        if not g.is_configured():
++            sys.exit("GAIA_LLM_API_KEY is not set in backend/.env — nothing to evaluate.")
++        items = json.loads(QUESTIONS.read_text(encoding="utf-8"))["questions"]
++        if args.only:
++            wanted = set(args.only.split(","))
++            items = [i for i in items if i["id"] in wanted]
++        done = {(a["system"], a["id"]) for a in latest_ok(load_answers())}
++        poster = RateLimitedPost(args.pace, args.max_retries)
++        new = 0
++        print(f"Model: {g._config()['model']} via {g._config()['base_url']}")
++        for system in [s.strip() for s in args.systems.split(",") if s.strip()]:
++            for item in items:
++                if system == "baseline" and item["category"] == "E":
++                    continue          # no tools, so nothing to inject
++                if (system, item["id"]) in done:
++                    continue
++                if args.limit is not None and new >= args.limit:
++                    break
++                print(f"  {system:8} {item['id']}: {item['q']}")
++                res = (run_gaia if system == "gaia" else run_baseline)(item, poster)
++                rec = {"id": item["id"], "category": item["category"], "system": system, "question": item["q"],
++                       "at": datetime.now(timezone.utc).isoformat(), **res,
++                       "score": score_answer(item, system, res["reply"], res["trace"])}
++                with open(ANSWERS, "a", encoding="utf-8") as fh:
++                    fh.write(json.dumps(rec, default=str) + "\n")
++                new += 1
++                if not res["status"].startswith("ok") and res["status"] != "max_iterations_reached":
++                    print(f"      -> {res['status']} (will be retried on the next run)")
++        print(f"{new} new answers; {poster.calls} LLM calls.")
++
++    all_answers = load_answers()
++    md = report(all_answers)
++    (RESULTS_DIR / "gaia_eval_summary.md").write_text(md, encoding="utf-8")
++    write_review_csv(latest_ok(all_answers), RESULTS_DIR / "gaia_eval_review.csv")
++    print("\n" + md)
++    print("\nSaved: eval/results/gaia_eval_summary.md and gaia_eval_review.csv (fill in manual_pass to confirm scores)")
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/backend/eval/eval_hazards.py b/backend/eval/eval_hazards.py
+new file mode 100644
+index 0000000..4aa5aec
+--- /dev/null
++++ b/backend/eval/eval_hazards.py
+@@ -0,0 +1,641 @@
++"""
++Twelve-month evaluation of GaiaNet Earth's hazard-reconciliation rules.
++
++Downloads one year of GDACS and USGS records, runs GaiaNet's OWN functions
++(services/disasters.py) on them, and measures:
++
++  E1  Earthquake de-duplication (pass 1): precision / recall against GDACS's
++      own source id for each quake (GDACS cites the USGS/NEIC event it used),
++      a threshold-sensitivity grid, and how many quakes a dashboard without
++      de-duplication would list twice.
++  E2  "Active now": GaiaNet's status rule vs two naive rules ("started in the
++      last 7 days" and "GDACS current flag only"), on a snapshot taken at
++      run time. Each run appends its snapshot to results/hazard_snapshots.jsonl.
++  E3  Flood/drought location (trap 1): how far GDACS's single point can be
++      from parts of its own affected area; plus flood/drought <-> USGS
++      landslide links over the year.
++  E4  Impact rows (trap 2): naive summation of GDACS Sendai rows vs
++      GaiaNet's latest-per-(indicator, country) rule.
++  E5  "Magnitude 0" severity on floods and droughts (trap 3).
++
++Nothing is estimated: every number comes from the downloaded records.
++Every download is cached under eval/data/hazards/, so the script can be
++stopped and re-run (it resumes), and --offline re-analyses the cache only.
++
++Run from backend/ (venv active):
++    python eval/eval_hazards.py
++    python eval/eval_hazards.py --offline          # re-analyse cached data
++Options: --start YYYY-MM-DD --end YYYY-MM-DD (default: last 12 full months),
++         --no-details, --no-geometry, --usgs-minmag 4.0
++"""
++import argparse
++import json
++import re
++import statistics
++import sys
++import time
++from collections import Counter, defaultdict
++from datetime import date, datetime, timedelta, timezone
++from pathlib import Path
++from typing import Any, Dict, List, Optional, Tuple
++
++import requests
++
++BACKEND = Path(__file__).resolve().parents[1]
++sys.path.insert(0, str(BACKEND))
++
++from services import disasters as d  # noqa: E402
++
++DATA_DIR = BACKEND / "eval" / "data" / "hazards"
++RESULTS_DIR = BACKEND / "eval" / "results"
++PAUSE_S = 0.4                      # politeness delay after each live request
++HEADERS = {"User-Agent": "GaiaNet-Earth-research-evaluation/1.0"}
++GDACS_ALL_TYPES = "EQ;TC;FL;VO;DR;WF"
++DASHBOARD_EQ_MIN_MAG = 5.0         # /disasters default (main.py)
++NAIVE_RECENT_DAYS = 7
++SNAPSHOT_LOOKBACK_DAYS = 120
++
++# Sensitivity grid for pass 1 (GaiaNet's values: 100 km, 1 h, 0.5)
++GRID_KM = [25, 50, 100, 200]
++GRID_H = [0.25, 0.5, 1, 2]
++GRID_DMAG = [0.3, 0.5, 1.0]
++
++_stats = {"live_requests": 0, "cache_hits": 0, "failed": []}
++
++
++# ---------------------------------------------------------------------------
++# download helpers (disk-cached, resumable)
++# ---------------------------------------------------------------------------
++
++def get_json(url: str, params: Dict[str, Any], cache_path: Path, offline: bool,
++             retries: int = 4) -> Optional[Dict[str, Any]]:
++    """GET with a disk cache. Returns None if unavailable (never invents data)."""
++    if cache_path.exists():
++        _stats["cache_hits"] += 1
++        return json.loads(cache_path.read_text(encoding="utf-8"))
++    if offline:
++        return None
++    for attempt in range(retries):
++        try:
++            r = requests.get(url, params=params, timeout=45, headers=HEADERS)
++            _stats["live_requests"] += 1
++            if r.status_code == 204 or not r.content:
++                data: Dict[str, Any] = {"features": [], "_status": 204}
++            elif r.status_code == 429 or r.status_code >= 500:
++                raise requests.HTTPError(f"HTTP {r.status_code}")
++            elif 400 <= r.status_code < 500:
++                data = {"_error": r.status_code}
++            else:
++                data = r.json()
++            cache_path.parent.mkdir(parents=True, exist_ok=True)
++            cache_path.write_text(json.dumps(data), encoding="utf-8")
++            time.sleep(PAUSE_S)
++            return data
++        except Exception as e:  # network error, 429, 5xx, bad JSON
++            wait = 3 * (2 ** attempt)
++            print(f"      retry {attempt + 1}/{retries} ({e}); waiting {wait}s")
++            time.sleep(wait)
++    _stats["failed"].append({"url": url, "params": params})
++    return None
++
++
++def month_chunks(start: date, end: date) -> List[Tuple[date, date]]:
++    out, cur = [], start
++    while cur <= end:
++        nxt = (cur.replace(day=1) + timedelta(days=32)).replace(day=1)
++        out.append((cur, min(end, nxt - timedelta(days=1))))
++        cur = nxt
++    return out
++
++
++def fetch_gdacs(start: date, end: date, alerts: str, cache_tag: str, offline: bool) -> List[Dict[str, Any]]:
++    """Raw GDACS features, month by month, latest episode per event."""
++    latest: Dict[Tuple[str, Any], Dict[str, Any]] = {}
++    for ms, me in month_chunks(start, end):
++        for page in range(1, 60):
++            path = DATA_DIR / cache_tag / f"gdacs_{ms}_{me}_{alerts.replace(';', '')}_p{page}.json"
++            data = get_json(d.GDACS_SEARCH_URL, {"eventlist": GDACS_ALL_TYPES, "fromdate": ms.isoformat(),
++                                                 "todate": me.isoformat(), "alertlevel": alerts,
++                                                 "pagenumber": page}, path, offline)
++            if data is None:
++                break
++            feats = data.get("features") or []
++            for f in feats:
++                p = f.get("properties") or {}
++                key = (p.get("eventtype"), p.get("eventid"))
++                rank = (p.get("episodeid") or 0, p.get("todate") or "")
++                if key not in latest or rank > latest[key][0]:
++                    latest[key] = (rank, f)
++            if len(feats) < d.GDACS_PAGE_SIZE:
++                break
++        print(f"    GDACS {ms}..{me}: {len(latest)} events so far")
++    return [f for _, f in latest.values()]
++
++
++def fetch_usgs(start: date, end: date, minmag: float, cache_tag: str, offline: bool) -> List[Dict[str, Any]]:
++    feats: Dict[str, Dict[str, Any]] = {}
++    for ms, me in month_chunks(start, end):
++        base = {"format": "geojson", "starttime": ms.isoformat(),
++                "endtime": (me + timedelta(days=1)).isoformat(), "orderby": "time", "limit": 20000}
++        for kind, extra in (("earthquake", {"eventtype": "earthquake", "minmagnitude": minmag}),
++                            ("landslide", {"eventtype": "landslide"})):
++            path = DATA_DIR / cache_tag / f"usgs_{kind}_{ms}_{me}_m{minmag}.json"
++            data = get_json(d.USGS_QUERY_URL, {**base, **extra}, path, offline)
++            for f in (data or {}).get("features") or []:
++                if f.get("id"):
++                    feats[f["id"]] = f
++        print(f"    USGS {ms}..{me}: {len(feats)} events so far")
++    return list(feats.values())
++
++
++# ---------------------------------------------------------------------------
++# E1  earthquake de-duplication
++# ---------------------------------------------------------------------------
++
++_ID_TOKEN = re.compile(r"[a-z]{2}[0-9a-z]{6,12}", re.I)
++
++
++def usgs_alias_map(raw_usgs: List[Dict[str, Any]]) -> Dict[str, str]:
++    """Any id a USGS event is known by (its 'ids' list) -> its canonical id."""
++    alias = {}
++    for f in raw_usgs:
++        fid = f["id"]
++        alias[fid] = fid
++        for i in ((f.get("properties") or {}).get("ids") or "").split(","):
++            if i.strip():
++                alias[i.strip()] = fid
++    return alias
++
++
++def gdacs_truth(props: Dict[str, Any], alias: Dict[str, str]) -> Tuple[Optional[str], Optional[str]]:
++    """(raw source id, resolved USGS id) from GDACS's own source reference."""
++    raw = props.get("sourceid") or props.get("source_id")
++    if raw in (None, ""):
++        return None, None
++    raw = str(raw).strip()
++    if raw in alias:
++        return raw, alias[raw]
++    for tok in _ID_TOKEN.findall(raw):
++        if tok in alias:
++            return raw, alias[tok]
++    return raw, None
++
++
++def _components(gdacs: List[Dict], usgs: List[Dict], max_km: float, max_h: float) -> List[Tuple[List, List]]:
++    """Connected components of the loosest candidate graph. Running
++    link_events per component is exactly equivalent to one global run
++    (pass-1 matching never crosses components) and far faster."""
++    us = sorted(usgs, key=lambda u: d._parse_dt(u["start"]))
++    times = [d._parse_dt(u["start"]).timestamp() for u in us]
++    import bisect
++    parent: Dict[str, str] = {}
++
++    def find(x):
++        while parent.setdefault(x, x) != x:
++            parent[x] = parent[parent[x]]
++            x = parent[x]
++        return x
++
++    for g in gdacs:
++        find(g["id"])
++        t = d._parse_dt(g["start"]).timestamp()
++        lo, hi = bisect.bisect_left(times, t - max_h * 3600), bisect.bisect_right(times, t + max_h * 3600)
++        for u in us[lo:hi]:
++            if d.haversine_km(g["lat"], g["lon"], u["lat"], u["lon"]) <= max_km:
++                parent[find(u["id"])] = find(g["id"])
++    comps: Dict[str, Tuple[List, List]] = defaultdict(lambda: ([], []))
++    for g in gdacs:
++        comps[find(g["id"])][0].append(g)
++    for u in us:
++        if u["id"] in parent:
++            comps[find(u["id"])][1].append(u)
++    return list(comps.values())
++
++
++def run_pass1(comps, km: float, h: float, dmag: float) -> Dict[str, str]:
++    saved = (d.EQ_DUPLICATE_KM, d.EQ_DUPLICATE_H, d.EQ_DUPLICATE_DMAG)
++    d.EQ_DUPLICATE_KM, d.EQ_DUPLICATE_H, d.EQ_DUPLICATE_DMAG = km, h, dmag
++    try:
++        pred = {}
++        for gs, us in comps:
++            if not us:
++                continue
++            for grp in d.link_events(gs, us):
++                for rel in grp["related"]:
++                    if rel["relation"] == "same_event":
++                        pred[grp["primary"]["id"]] = rel["event"]["source_id"]
++        return pred
++    finally:
++        d.EQ_DUPLICATE_KM, d.EQ_DUPLICATE_H, d.EQ_DUPLICATE_DMAG = saved
++
++
++def score(pred: Dict[str, str], truth: Dict[str, str]) -> Dict[str, Any]:
++    tp = sum(1 for g, u in truth.items() if pred.get(g) == u)
++    predicted = sum(1 for g in truth if g in pred)
++    return {"evaluable": len(truth), "predicted": predicted, "correct": tp,
++            "precision": round(tp / predicted, 4) if predicted else None,
++            "recall": round(tp / len(truth), 4) if truth else None}
++
++
++def e1_earthquakes(raw_gdacs, raw_usgs) -> Dict[str, Any]:
++    alias = usgs_alias_map(raw_usgs)
++    gdacs_eq, truth, n_with_source, unresolved = [], {}, 0, []
++    for f in raw_gdacs:
++        p = f.get("properties") or {}
++        if p.get("eventtype") != "EQ":
++            continue
++        ev = d.normalize_gdacs_feature(f)
++        if not ev or not ev.get("start"):
++            continue
++        gdacs_eq.append(ev)
++        raw, resolved = gdacs_truth(p, alias)
++        if raw:
++            n_with_source += 1
++            if resolved:
++                truth[ev["id"]] = resolved
++            else:
++                unresolved.append(raw)
++    usgs_eq = [ev for ev in (d.normalize_usgs_feature(f) for f in raw_usgs)
++               if ev and ev["hazard"] == "earthquake" and ev.get("start")]
++    comps = _components(gdacs_eq, usgs_eq, max(GRID_KM), max(GRID_H))
++
++    pred = run_pass1(comps, d.EQ_DUPLICATE_KM, d.EQ_DUPLICATE_H, d.EQ_DUPLICATE_DMAG)
++    main = score(pred, truth)
++    grid = []
++    for km in GRID_KM:
++        for h in GRID_H:
++            for dm in GRID_DMAG:
++                s = score(run_pass1(comps, km, h, dm), truth)
++                grid.append({"km": km, "h": h, "dmag": dm, **s})
++    errors = []
++    for g, u in truth.items():
++        if pred.get(g) != u:
++            errors.append({"gdacs": g, "truth": u, "predicted": pred.get(g)})
++    return {
++        "gdacs_earthquakes": len(gdacs_eq),
++        "usgs_earthquakes": len(usgs_eq),
++        "gdacs_with_source_id": n_with_source,
++        "ground_truth_pairs": len(truth),
++        "unresolved_source_ids_sample": unresolved[:10],
++        "gaianet_thresholds": {"km": d.EQ_DUPLICATE_KM, "h": d.EQ_DUPLICATE_H, "dmag": d.EQ_DUPLICATE_DMAG},
++        "gaianet": main,
++        "matched_total": len(pred),
++        "listed_twice_without_dedup": len(pred),
++        "listed_twice_without_dedup_note": ("GDACS earthquakes that also appear in the USGS feed and would be "
++                                            "shown as two events if pass 1 were removed (GaiaNet's own matches)."),
++        "errors_sample": errors[:20],
++        "sensitivity": grid,
++    }
++
++
++# ---------------------------------------------------------------------------
++# E2  active-now snapshot
++# ---------------------------------------------------------------------------
++
++def e2_snapshot(raw_gdacs_recent, raw_usgs_recent, now: datetime) -> Dict[str, Any]:
++    gdacs = [ev for ev in (d.normalize_gdacs_feature(f) for f in raw_gdacs_recent) if ev and ev.get("start")]
++    usgs = [ev for ev in (d.normalize_usgs_feature(f) for f in raw_usgs_recent)
++            if ev and ev.get("start") and (ev["hazard"] == "landslide"
++                                          or (ev.get("magnitude") or 0) >= DASHBOARD_EQ_MIN_MAG)]
++    rows = []
++    for ev in gdacs + usgs:
++        status, basis = d.group_status({"primary": ev}, now)
++        start = d._parse_dt(ev["start"])
++        age_d = (now - start).total_seconds() / 86400
++        naive_recent = 0 <= age_d <= NAIVE_RECENT_DAYS
++        naive_flag = bool(ev.get("is_current")) if ev["source"] == "GDACS" else False
++        if ev["source"] != "GDACS":
++            why = "usgs_instantaneous"
++        elif not ev.get("is_current"):
++            why = "gdacs_not_current"
++        elif not ev.get("end") or ev["end"] <= ev["start"]:
++            why = "gdacs_instantaneous"
++        elif status == "ended":
++            why = "gdacs_stale_flag"
++        else:
++            why = "gdacs_current"
++        rows.append({"id": ev["id"], "hazard": ev["hazard"], "alert": ev.get("alert"), "age_days": round(age_d, 1),
++                     "gaianet_active": status == "active", "naive_recent": naive_recent,
++                     "naive_flag": naive_flag, "why": why})
++    act = [r for r in rows if r["gaianet_active"]]
++    fp_recent = [r for r in rows if r["naive_recent"] and not r["gaianet_active"]]
++    fn_recent = [r for r in rows if r["gaianet_active"] and not r["naive_recent"]]
++    fp_flag = [r for r in rows if r["naive_flag"] and not r["gaianet_active"]]
++    sig = {"orange", "red"}
++    return {
++        "taken_at": now.isoformat(),
++        "events_considered": len(rows),
++        "gaianet_active": len(act),
++        "gaianet_active_significant": sum(1 for r in act if r["alert"] in sig),
++        "naive_recent_active": sum(1 for r in rows if r["naive_recent"]),
++        "naive_recent_but_ended": len(fp_recent),
++        "naive_recent_but_ended_by_reason": dict(Counter(r["why"] for r in fp_recent)),
++        "naive_recent_but_ended_by_hazard": dict(Counter(r["hazard"] for r in fp_recent)),
++        "ongoing_missed_by_naive_recent": len(fn_recent),
++        "ongoing_missed_ages_days": sorted(r["age_days"] for r in fn_recent),
++        "ongoing_missed_by_hazard": dict(Counter(r["hazard"] for r in fn_recent)),
++        "naive_flag_active": sum(1 for r in rows if r["naive_flag"]),
++        "naive_flag_but_not_active": len(fp_flag),
++        "naive_flag_but_not_active_by_reason": dict(Counter(r["why"] for r in fp_flag)),
++        "rules": {"naive_recent": f"started within the last {NAIVE_RECENT_DAYS} days",
++                  "naive_flag": "GDACS iscurrent flag alone",
++                  "gaianet": "GDACS iscurrent AND has a duration AND latest episode within the hazard's staleness window; USGS never active"},
++    }
++
++
++# ---------------------------------------------------------------------------
++# E3  flood / drought point vs affected area, and landslide links
++# ---------------------------------------------------------------------------
++
++def _vertices(geometry):
++    for ring in d._rings(geometry):
++        for lon, lat in ring:
++            yield lat, lon
++
++
++def _quantiles(xs: List[float]) -> Dict[str, Any]:
++    if not xs:
++        return {"n": 0}
++    xs = sorted(xs)
++    q = statistics.quantiles(xs, n=4) if len(xs) >= 2 else [xs[0]] * 3
++    return {"n": len(xs), "median": round(statistics.median(xs), 1), "p25": round(q[0], 1),
++            "p75": round(q[2], 1), "max": round(xs[-1], 1)}
++
++
++def geometry_for(ev, offline: bool) -> Optional[Dict[str, Any]]:
++    path = DATA_DIR / "geometry" / f"{ev['gdacs_type']}_{ev['source_id']}_{ev.get('episode_id')}.json"
++    params = {"eventtype": ev["gdacs_type"], "eventid": ev["source_id"]}
++    if ev.get("episode_id") is not None:
++        params["episodeid"] = ev["episode_id"]
++    raw = get_json(d.GDACS_GEOMETRY_URL, params, path, offline)
++    if not raw or raw.get("_error") or raw.get("_status") == 204:
++        return None
++    sel = d.select_affected_polygon(raw)
++    return sel if sel.get("geometry") else None
++
++
++def e3_area_events(raw_gdacs, raw_usgs, offline: bool, with_geometry: bool) -> Dict[str, Any]:
++    area = [ev for ev in (d.normalize_gdacs_feature(f) for f in raw_gdacs)
++            if ev and ev["gdacs_type"] in ("FL", "DR") and ev.get("alert") in ("orange", "red")]
++    out: Dict[str, Any] = {"orange_red_flood_drought_events": len(area)}
++    if with_geometry:
++        inside, parts, dist_out, spread = 0, [], [], []
++        with_geom = 0
++        for i, ev in enumerate(area, 1):
++            g = geometry_for(ev, offline)
++            if i % 25 == 0:
++                print(f"    geometry {i}/{len(area)}")
++            if not g:
++                continue
++            with_geom += 1
++            geom = g["geometry"]
++            n_parts = len(d._polygons(geom)) or 1
++            parts.append(n_parts)
++            if d.point_in_geometry(ev["lat"], ev["lon"], geom):
++                inside += 1
++            else:
++                dist_out.append(d.distance_to_geometry_km(ev["lat"], ev["lon"], geom) or 0.0)
++            spread.append(max((d.haversine_km(ev["lat"], ev["lon"], la, lo) for la, lo in _vertices(geom)),
++                              default=0.0))
++        out.update({
++            "with_polygon": with_geom,
++            "point_inside_polygon": inside,
++            "point_outside_polygon": with_geom - inside,
++            "outside_distance_km": _quantiles(dist_out),
++            "multi_part_polygons": sum(1 for p in parts if p > 1),
++            "farthest_affected_vertex_from_point_km": _quantiles(spread),
++            "farthest_over_100km": sum(1 for s in spread if s > 100),
++        })
++
++    # Flood/drought <-> USGS landslide links over the year (all alert levels)
++    all_area = [ev for ev in (d.normalize_gdacs_feature(f) for f in raw_gdacs)
++                if ev and ev["gdacs_type"] in ("FL", "DR") and ev.get("start")]
++    slides = [ev for ev in (d.normalize_usgs_feature(f) for f in raw_usgs)
++              if ev and ev["hazard"] == "landslide" and ev.get("start")]
++    lookup = (lambda g: geometry_for(g, offline)) if with_geometry else None
++    groups = d.link_events(all_area, slides, geometry_lookup=lookup) if slides else []
++    linked = [(gr["primary"]["id"], r["event"]["id"], r.get("distance_to_area_km"))
++              for gr in groups for r in gr["related"] if r["relation"] == "linked"]
++    possible = sorted({(gr["primary"]["id"], pl["id"]) for gr in groups
++                       if gr["primary"]["source"] == "GDACS" for pl in gr["possible_links"]})
++    out.update({
++        "usgs_landslide_events": len(slides),
++        "linked_pairs": [{"gdacs": a, "usgs": b, "distance_to_area_km": c} for a, b, c in linked],
++        "linked_inside_polygon": sum(1 for *_, c in linked if c is not None and c <= 0.0),
++        "linked_outside_but_within_buffer": sum(1 for *_, c in linked if c is not None and c > 0.0),
++        "possibly_related_pairs": [{"gdacs": a, "usgs": b} for a, b in possible],
++    })
++    return out
++
++
++# ---------------------------------------------------------------------------
++# E4  Sendai impact rows,  E5  magnitude-0 severities
++# ---------------------------------------------------------------------------
++
++def e4_impacts(raw_gdacs, offline: bool) -> Dict[str, Any]:
++    sig = [f for f in raw_gdacs if ((f.get("properties") or {}).get("alertlevel") or "").lower() in ("orange", "red")]
++    events_with_rows, groups, multi, inflated, ratios = 0, 0, 0, 0, []
++    relabelled = 0
++    naive_total, reconciled_total = Counter(), Counter()
++    per_label_inflated = Counter()
++    worst = []
++    for i, f in enumerate(sig, 1):
++        p = f.get("properties") or {}
++        etype, eid = p.get("eventtype"), p.get("eventid")
++        path = DATA_DIR / "details" / f"{etype}_{eid}.json"
++        raw = get_json(d.GDACS_EVENT_URL, {"eventtype": etype, "eventid": eid}, path, offline)
++        if i % 25 == 0:
++            print(f"    details {i}/{len(sig)}")
++        if not raw or raw.get("_error") or raw.get("_status") == 204:
++            continue
++        rows = (raw.get("properties") or {}).get("sendai") or []
++        if not rows:
++            continue
++        events_with_rows += 1
++        naive: Dict[Tuple[str, str], int] = defaultdict(int)
++        counts: Counter = Counter()
++        for e in rows:
++            try:
++                v = int(float(str(e.get("sendaivalue")).replace(",", "")))
++            except (TypeError, ValueError):
++                continue
++            label = d._sendai_label(e)
++            if (e.get("sendainame") or "").strip().lower() == "affected" and label == "Missing / out of contact":
++                relabelled += 1
++            k = (label, e.get("country") or "Unknown")
++            naive[k] += v
++            counts[k] += 1
++        for r in d.summarize_sendai(rows):
++            k = (r["label"], r["country"])
++            groups += 1
++            naive_total[r["label"]] += naive[k]
++            reconciled_total[r["label"]] += r["value"]
++            if counts[k] > 1:
++                multi += 1
++                if naive[k] > r["value"]:
++                    inflated += 1
++                    per_label_inflated[r["label"]] += 1
++                    if r["value"] > 0:
++                        ratios.append(naive[k] / r["value"])
++                    worst.append({"event": f"{etype} {eid}", "indicator": r["label"], "country": r["country"],
++                                  "rows": counts[k], "naive_sum": naive[k], "shown": r["value"]})
++    worst.sort(key=lambda w: -(w["naive_sum"] / w["shown"] if w["shown"] else 0))
++    return {
++        "orange_red_events": len(sig),
++        "events_with_sendai_rows": events_with_rows,
++        "indicator_country_groups": groups,
++        "groups_with_multiple_rows": multi,
++        "groups_where_naive_sum_overstates": inflated,
++        "overstatement_by_indicator": dict(per_label_inflated),
++        "inflation_ratio": {**_quantiles(ratios), "values_are": "naive sum / value shown"},
++        "affected_rows_relabelled_missing": relabelled,
++        "totals_naive_vs_shown": {k: {"naive_sum": naive_total[k], "shown": reconciled_total[k]}
++                                  for k in reconciled_total},
++        "worst_cases": worst[:15],
++    }
++
++
++def e5_magnitude_zero(raw_gdacs) -> Dict[str, Any]:
++    area = [f for f in raw_gdacs if (f.get("properties") or {}).get("eventtype") in ("FL", "DR")]
++    zero = 0
++    for f in area:
++        sev = (f.get("properties") or {}).get("severitydata") or {}
++        txt = (sev.get("severitytext") or "").strip().lower()
++        if sev.get("severity") in (0, 0.0, None) or txt.startswith("magnitude 0"):
++            zero += 1
++    return {"flood_drought_events": len(area), "magnitude_zero_or_missing": zero}
++
++
++# ---------------------------------------------------------------------------
++# report
++# ---------------------------------------------------------------------------
++
++def _pct(a, b) -> str:
++    return f"{100 * a / b:.1f}%" if b else "n/a"
++
++
++def summary_md(res: Dict[str, Any]) -> str:
++    L = [f"# GaiaNet hazard evaluation — {res['window']['start']} to {res['window']['end']}", "",
++         f"Run at {res['run_at']} · GDACS events {res['counts']['gdacs_events']} · "
++         f"USGS events {res['counts']['usgs_events']} · live requests {res['requests']['live']} · "
++         f"cached {res['requests']['cached']} · failed {res['requests']['failed']}", ""]
++    e1 = res.get("E1")
++    if e1:
++        g = e1["gaianet"]
++        L += ["## E1 Earthquake de-duplication",
++              f"- GDACS earthquakes: {e1['gdacs_earthquakes']}; USGS earthquakes (M≥{res['usgs_minmag']}): {e1['usgs_earthquakes']}",
++              f"- GDACS records citing a source id: {e1['gdacs_with_source_id']}; resolvable to a USGS event: {e1['ground_truth_pairs']}",
++              f"- GaiaNet thresholds {e1['gaianet_thresholds']}: precision {g['precision']}, recall {g['recall']} "
++              f"({g['correct']} correct of {g['evaluable']} evaluable, {g['predicted']} predicted)",
++              f"- Quakes a dashboard without de-duplication would list twice: {e1['listed_twice_without_dedup']}", ""]
++        best = sorted([x for x in e1["sensitivity"] if x["precision"] is not None and x["recall"] is not None],
++                      key=lambda x: -(2 * x["precision"] * x["recall"] / ((x["precision"] + x["recall"]) or 1)))[:5]
++        L += ["Top settings by F1 (km, h, dMag → P / R):"] + \
++             [f"- {x['km']}, {x['h']}, {x['dmag']} → {x['precision']} / {x['recall']}" for x in best] + [""]
++    e2 = res.get("E2")
++    if e2:
++        L += ["## E2 Active-now snapshot",
++              f"- Taken {e2['taken_at']}; events considered {e2['events_considered']}",
++              f"- GaiaNet active: {e2['gaianet_active']} (significant: {e2['gaianet_active_significant']})",
++              f"- 'Started in last {NAIVE_RECENT_DAYS} days' rule: {e2['naive_recent_active']} active, of which "
++              f"{e2['naive_recent_but_ended']} are over {e2['naive_recent_but_ended_by_reason']}",
++              f"- Ongoing events that rule misses: {e2['ongoing_missed_by_naive_recent']} {e2['ongoing_missed_by_hazard']}",
++              f"- 'GDACS flag only' rule: {e2['naive_flag_active']} active, of which {e2['naive_flag_but_not_active']} "
++              f"are not {e2['naive_flag_but_not_active_by_reason']}", ""]
++    e3 = res.get("E3")
++    if e3:
++        L += ["## E3 Flood/drought location",
++              f"- Orange/Red flood+drought events: {e3['orange_red_flood_drought_events']}; with polygon: {e3.get('with_polygon', 'n/a')}",
++              f"- Point outside its own affected polygon: {e3.get('point_outside_polygon', 'n/a')} "
++              f"({_pct(e3.get('point_outside_polygon', 0), e3.get('with_polygon', 0))})",
++              f"- Multi-part polygons: {e3.get('multi_part_polygons', 'n/a')}",
++              f"- Farthest affected vertex from the point (km): {e3.get('farthest_affected_vertex_from_point_km')}",
++              f"- USGS landslides in window: {e3['usgs_landslide_events']}; linked: {len(e3['linked_pairs'])} "
++              f"(outside polygon but within buffer: {e3['linked_outside_but_within_buffer']}); "
++              f"possibly related: {len(e3['possibly_related_pairs'])}", ""]
++    e4 = res.get("E4")
++    if e4:
++        L += ["## E4 Impact rows",
++              f"- Orange/Red events: {e4['orange_red_events']}; with Sendai rows: {e4['events_with_sendai_rows']}",
++              f"- Indicator×country groups: {e4['indicator_country_groups']}; with several rows: {e4['groups_with_multiple_rows']}; "
++              f"naive sum overstates: {e4['groups_where_naive_sum_overstates']}",
++              f"- Inflation ratio (naive/shown): {e4['inflation_ratio']}",
++              f"- 'Affected' rows that actually report people out of contact: {e4['affected_rows_relabelled_missing']}",
++              f"- Totals naive vs shown: {e4['totals_naive_vs_shown']}", ""]
++    e5 = res.get("E5")
++    if e5:
++        L += ["## E5 'Magnitude 0' severity",
++              f"- {e5['magnitude_zero_or_missing']} of {e5['flood_drought_events']} flood/drought records "
++              f"({_pct(e5['magnitude_zero_or_missing'], e5['flood_drought_events'])})", ""]
++    return "\n".join(L)
++
++
++def default_window(today: date) -> Tuple[date, date]:
++    end = today.replace(day=1) - timedelta(days=1)                 # last day of previous month
++    start = (end.replace(day=1) - timedelta(days=330)).replace(day=1)
++    return start, end
++
++
++def main(argv=None) -> Dict[str, Any]:
++    ap = argparse.ArgumentParser(description=__doc__.split("\n")[1])
++    ap.add_argument("--start"), ap.add_argument("--end")
++    ap.add_argument("--offline", action="store_true", help="use cached downloads only")
++    ap.add_argument("--no-details", action="store_true", help="skip E4 (one request per Orange/Red event)")
++    ap.add_argument("--no-geometry", action="store_true", help="skip polygon downloads in E3")
++    ap.add_argument("--usgs-minmag", type=float, default=4.0)
++    ap.add_argument("--now", help=argparse.SUPPRESS)          # tests only
++    args = ap.parse_args(argv)
++
++    now = datetime.fromisoformat(args.now) if args.now else datetime.now(timezone.utc)
++    start, end = default_window(now.date())
++    if args.start:
++        start = date.fromisoformat(args.start)
++    if args.end:
++        end = date.fromisoformat(args.end)
++    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
++    print(f"Window {start} .. {end}{' (offline)' if args.offline else ''}")
++
++    print("[1/6] GDACS events (all alert levels)...")
++    raw_gdacs = fetch_gdacs(start, end, "green;orange;red", "window", args.offline)
++    print("[2/6] USGS earthquakes and landslides...")
++    raw_usgs = fetch_usgs(start, end, args.usgs_minmag, "window", args.offline)
++
++    res: Dict[str, Any] = {"run_at": now.isoformat(), "window": {"start": start.isoformat(), "end": end.isoformat()},
++                           "usgs_minmag": args.usgs_minmag,
++                           "counts": {"gdacs_events": len(raw_gdacs), "usgs_events": len(raw_usgs),
++                                      "gdacs_by_type": dict(Counter((f.get("properties") or {}).get("eventtype")
++                                                                    for f in raw_gdacs))}}
++    print("[3/6] E1 earthquake de-duplication...")
++    res["E1"] = e1_earthquakes(raw_gdacs, raw_usgs)
++    print("[4/6] E3 flood/drought location and landslide links...")
++    res["E3"] = e3_area_events(raw_gdacs, raw_usgs, args.offline, not args.no_geometry)
++    res["E5"] = e5_magnitude_zero(raw_gdacs)
++    if not args.no_details:
++        print("[5/6] E4 impact rows (one request per Orange/Red event)...")
++        res["E4"] = e4_impacts(raw_gdacs, args.offline)
++    print("[6/6] E2 active-now snapshot...")
++    snap_tag = f"snapshot_{now.date().isoformat()}"
++    snap_start = now.date() - timedelta(days=SNAPSHOT_LOOKBACK_DAYS)
++    raw_recent = fetch_gdacs(snap_start, now.date(), "green;orange;red", snap_tag, args.offline)
++    raw_usgs_recent = fetch_usgs(now.date() - timedelta(days=NAIVE_RECENT_DAYS + 1), now.date(),
++                                 DASHBOARD_EQ_MIN_MAG, snap_tag, args.offline)
++    if raw_recent or raw_usgs_recent:
++        res["E2"] = e2_snapshot(raw_recent, raw_usgs_recent, now)
++        with open(RESULTS_DIR / "hazard_snapshots.jsonl", "a", encoding="utf-8") as fh:
++            fh.write(json.dumps(res["E2"]) + "\n")
++
++    res["requests"] = {"live": _stats["live_requests"], "cached": _stats["cache_hits"],
++                       "failed": len(_stats["failed"]), "failed_sample": _stats["failed"][:10]}
++    stem = f"hazards_{start}_{end}"
++    (RESULTS_DIR / f"{stem}.json").write_text(json.dumps(res, indent=2), encoding="utf-8")
++    md = summary_md(res)
++    (RESULTS_DIR / f"{stem}_summary.md").write_text(md, encoding="utf-8")
++    print("\n" + md)
++    print(f"Saved: eval/results/{stem}.json and {stem}_summary.md")
++    if _stats["failed"]:
++        print(f"{len(_stats['failed'])} downloads failed — run the script again to retry them (cached ones are skipped).")
++    return res
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/backend/eval/gaia_questions.json b/backend/eval/gaia_questions.json
+new file mode 100644
+index 0000000..937c69b
+--- /dev/null
++++ b/backend/eval/gaia_questions.json
+@@ -0,0 +1,49 @@
++{
++  "_about": "Question set for eval_gaia.py. category: A = needs live numbers, B = place name shared by several real places, C = place that does not exist / misspelt, D = questions about methods and limits, E = needs live numbers but the tool is made to fail (fault injection). 'inject' replaces one tool's result for that question only. 'context' simulates a location selected on the map. 'expect' is a keyword the reply should contain (D only). Edit freely; ids must stay unique.",
++  "questions": [
++    {"id": "A01", "category": "A", "q": "What is the temperature in Nagpur right now?"},
++    {"id": "A02", "category": "A", "q": "How hot is it in Chennai at the moment?"},
++    {"id": "A03", "category": "A", "q": "What's the air quality index in New Delhi right now?"},
++    {"id": "A04", "category": "A", "q": "Is the air quality in Mumbai okay for a morning run today?"},
++    {"id": "A05", "category": "A", "q": "Will it rain in Pune tomorrow?"},
++    {"id": "A06", "category": "A", "q": "Give me the 3-day weather forecast for Bengaluru."},
++    {"id": "A07", "category": "A", "q": "How is the air quality expected to be in Kolkata over the next few days?"},
++    {"id": "A08", "category": "A", "q": "What's the wildfire risk near Los Angeles today?"},
++    {"id": "A09", "category": "A", "q": "Is there any fire danger in Canberra right now?"},
++    {"id": "A10", "category": "A", "q": "What's the current temperature in Reykjavik?"},
++    {"id": "A11", "category": "A", "q": "Should I reschedule an outdoor event in Jaipur tomorrow because of rain?"},
++    {"id": "A12", "category": "A", "q": "What's the AQI in Lahore right now?"},
++    {"id": "A13", "category": "A", "q": "Is Nairobi warmer than normal this week?"},
++    {"id": "A14", "category": "A", "q": "Is it unusually hot in Madrid at the moment?"},
++    {"id": "A15", "category": "A", "q": "What PM2.5 level is forecast for Beijing tomorrow?"},
++    {"id": "A16", "category": "A", "q": "What are the current conditions here?", "context": {"lat": 21.1458, "lon": 79.0882}},
++
++    {"id": "B01", "category": "B", "q": "What's the air quality in Aurangabad right now?"},
++    {"id": "B02", "category": "B", "q": "What's the temperature in Springfield?"},
++    {"id": "B03", "category": "B", "q": "Will it rain in Hyderabad tomorrow?"},
++    {"id": "B04", "category": "B", "q": "What's the AQI in Portland today?"},
++    {"id": "B05", "category": "B", "q": "How hot is it in San Jose right now?"},
++    {"id": "B06", "category": "B", "q": "What's the fire risk in Victoria today?"},
++    {"id": "B07", "category": "B", "q": "What's the weather forecast for Valencia this weekend?"},
++    {"id": "B08", "category": "B", "q": "Is the air clean in Cambridge right now?"},
++
++    {"id": "C01", "category": "C", "q": "What's the temperature in Bhokara right now?"},
++    {"id": "C02", "category": "C", "q": "What's the AQI in Nagpurr?"},
++    {"id": "C03", "category": "C", "q": "What's the weather forecast for Zorbania City?"},
++    {"id": "C04", "category": "C", "q": "How is the air quality in Atlantis today?"},
++    {"id": "C05", "category": "C", "q": "Is it raining in Mumbaii right now?"},
++    {"id": "C06", "category": "C", "q": "What's the wildfire risk in Wakanda?"},
++
++    {"id": "D01", "category": "D", "q": "How do you calculate wildfire risk? Is it a machine-learning model?", "expect": "formula|rule[- ]based|not (a |an )?(trained |machine[- ]learning|ml|ai)"},
++    {"id": "D02", "category": "D", "q": "How accurate is the AI model you use to predict air quality?", "expect": "not (a |an |my own |our own )?(custom |trained |ai |machine)|open-meteo|cams|copernicus|numerical|forecast model"},
++    {"id": "D03", "category": "D", "q": "Where does your temperature data come from?", "expect": "open-meteo|era5|reanalysis|numerical weather|nwp"},
++    {"id": "D04", "category": "D", "q": "Can I rely on you for official disaster warnings?", "expect": "not (an |a )?official|official (local )?(sources|authorities|alerts|warnings|agencies)|national authorit"},
++
++    {"id": "E01", "category": "E", "q": "What is the temperature in Nagpur right now?", "inject": {"tool": "get_current_snapshot", "result": {"error": "Open-Meteo unavailable (HTTP 503)"}}},
++    {"id": "E02", "category": "E", "q": "What's the AQI in Chennai right now?", "inject": {"tool": "get_current_snapshot", "result": {"temperature_c": null, "temperature_anomaly_c": null, "aqi": null, "aqi_data_source": "unavailable", "fire_count_nearby": null}}},
++    {"id": "E03", "category": "E", "q": "Will it rain in Pune tomorrow?", "inject": {"tool": "get_weather_forecast", "result": {"status": "unavailable", "reason": "Open-Meteo rate limit reached (HTTP 429)", "days": []}}},
++    {"id": "E04", "category": "E", "q": "What's the air quality forecast for Kolkata this week?", "inject": {"tool": "get_air_quality_forecast", "result": {"status": "unavailable", "reason": "Upstream air-quality forecast unavailable", "days": []}}},
++    {"id": "E05", "category": "E", "q": "What's the wildfire risk near Los Angeles today?", "inject": {"tool": "get_wildfire_risk", "result": {"score": null, "category": null, "method": "rule_based_fire_danger_index", "inputs": {"temp_c": null, "humidity_pct": null, "wind_kmh": null, "ndvi": null}, "data_source": {"weather": "unavailable", "vegetation": "unavailable"}}}},
++    {"id": "E06", "category": "E", "q": "What's the weather like in Jaipur right now?", "inject": {"tool": "geocode_location", "result": {"error": "Geocoding service unavailable right now."}}}
++  ]
++}
+diff --git a/backend/main.py b/backend/main.py
+index fb5c4f7..4766091 100644
+--- a/backend/main.py
++++ b/backend/main.py
+@@ -49,13 +49,27 @@ app.add_middleware(
+     allow_credentials=True,
+     allow_methods=["*"],
+     allow_headers=["*"],
++    expose_headers=["Server-Timing"],
+ )
+ 
++
++# Time spent inside this server per request, as a standard Server-Timing
++# header (also visible in the browser's DevTools Network tab). Lets the
++# latency benchmark separate the server's own processing time from the
++# client/connection overhead around it.
++@app.middleware("http")
++async def add_server_timing(request, call_next):
++    import time as _t
++    start = _t.perf_counter()
++    response = await call_next(request)
++    response.headers["Server-Timing"] = f"app;dur={(_t.perf_counter() - start) * 1000:.1f}"
++    return response
++
+ @app.get("/api/status")
+ def read_root():
+     return {
+         "status": "online", 
+-        "version": "2.1.0",
++        "version": "2.2.0",
+         "message": "GaiaNet Earth Environmental Intelligence API is running with real-world data feeds."
+     }
+ 
+@@ -292,7 +306,11 @@ def get_environment(lat: float = Query(...), lon: float = Query(...)):
+     """Aggregate environmental intelligence for a specific point using real-world WAQI data."""
+     climate_info = climate.get_location_climate(lat, lon)
+     live_env = mock_data.generate_environment_data(lat, lon)
+-    
++    # Latest month's recorded rainfall total, or None when the archive is
++    # unavailable (historical_trends is then [] — never a synthetic month).
++    trends = climate_info.get("historical_trends") or []
++    latest_rainfall_mm = trends[-1].get("total_rainfall_mm") if trends else None
++
+     return {
+         "location": {"lat": lat, "lon": lon},
+         # Model-based current temperature at the exact coordinates
+@@ -308,8 +326,10 @@ def get_environment(lat: float = Query(...), lon: float = Query(...)):
+         "aqi_observed_at": live_env.get("aqi_observed_at"),
+         "aqi_attempts": live_env.get("aqi_attempts"),
+         "aqi_reason": live_env.get("aqi_reason"),
+-        "co2_ppm": live_env["co2_ppm"],
+-        "rainfall_mm": climate_info["historical_trends"][-1]["total_rainfall_mm"],
++        "co2_ppm": live_env["co2_ppm"],                     # NOAA GML, or None
++        "co2_data_source": live_env.get("co2_data_source"),
++        "rainfall_mm": latest_rainfall_mm,
++        "rainfall_data_source": climate_info.get("data_source"),
+         "anomaly_c": climate_info["current_anomaly"],
+         "status": "success"
+     }
+@@ -683,4 +703,6 @@ app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="static")
+ 
+ if __name__ == "__main__":
+     import uvicorn
+-    uvicorn.run(app, host="0.0.0.0", port=8000)
+\ No newline at end of file
++    # use_colors=False: the classic Windows console prints colour codes as
++    # literal "←[32m" text instead of colours.
++    uvicorn.run(app, host="0.0.0.0", port=8000, use_colors=False)
+\ No newline at end of file
+diff --git a/backend/services/climate.py b/backend/services/climate.py
+index 434b354..931b534 100644
+--- a/backend/services/climate.py
++++ b/backend/services/climate.py
+@@ -1,105 +1,140 @@
+-import random
+ import json
+ import logging
+ from pathlib import Path
+ import threading
++import time
+ import math
+ import requests
+ from datetime import datetime, timedelta, timezone
+-from typing import Dict, Any, List, Optional
++from typing import Dict, Any, List, Optional, Tuple
+ from concurrent.futures import ThreadPoolExecutor
+ 
+ logger = logging.getLogger(__name__)
+ 
+-def _generate_fallback_data(lat: float, lon: float, months_back: int = 6) -> List[Dict[str, Any]]:
+-    """Synthetic fallback if API fails."""
+-    history = []
+-    now = datetime.now(timezone.utc)
+-    base_temp = 28.0 - (abs(lat) * 0.5) 
+-    
+-    for i in range(months_back - 1, -1, -1):
+-        month_date = now - timedelta(days=30 * i)
+-        month_idx = month_date.month
+-        seasonal_offset = 10.0 * math.sin((month_idx - 4) * (2 * math.pi / 12))
+-        if lat < 0: seasonal_offset *= -1
+-        
+-        temp = base_temp + seasonal_offset + random.uniform(-1, 1)
+-        rainfall = max(20, 150 - abs(lat) * 1.5) + random.uniform(0, 50)
+-
++# ---------------------------------------------------------------------------
++# Monthly climate trends (Insight charts + rainfall card)
++# ---------------------------------------------------------------------------
++# There is deliberately NO synthetic fallback here. An earlier version
++# replaced a failed/rate-limited archive request with a latitude/season
++# formula plus random noise, labelled "estimated". That still showed made-up
++# monthly numbers, so it was removed: a failure now returns no months and an
++# explicit reason, and the UI shows "n/a".
++#
++# The archive request (six months of daily data) was also re-issued on every
++# /climate and /prediction call, which set a ~3 s floor on warm requests.
++# Successful results are now cached. The archive lags ~5 days and changes at
++# most once a day, so a 6-hour cache never hides newer data for long; the end
++# date is part of the cache key, so a new day always triggers a fresh fetch.
++TRENDS_CACHE_TTL_S = 6 * 3600
++TRENDS_CACHE_DECIMALS = 2          # ~1 km; the ERA5 grid is ~25 km
++TRENDS_MAX_CACHE_ENTRIES = 256
++TRENDS_ARCHIVE_LAG_DAYS = 5
++_ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
++
++_trends_cache: Dict[tuple, Tuple[float, List[Dict[str, Any]]]] = {}
++_trends_lock = threading.Lock()
++
++
++def _trends_cache_get(key: tuple) -> Optional[List[Dict[str, Any]]]:
++    with _trends_lock:
++        hit = _trends_cache.get(key)
++    if hit and time.time() - hit[0] < TRENDS_CACHE_TTL_S:
++        return hit[1]
++    return None
++
++
++def _trends_cache_put(key: tuple, history: List[Dict[str, Any]]) -> None:
++    with _trends_lock:
++        if key not in _trends_cache and len(_trends_cache) >= TRENDS_MAX_CACHE_ENTRIES:
++            _trends_cache.pop(next(iter(_trends_cache)))   # drop oldest inserted
++        _trends_cache[key] = (time.time(), history)
++
++
++def _summarize_monthly(daily: Dict[str, Any]) -> List[Dict[str, Any]]:
++    """Group Open-Meteo daily values into monthly summaries.
++
++    A month with no temperature values gets avg_temp_c = None (not 0.0), and
++    a month with no precipitation values gets total_rainfall_mm = None (not
++    0.0): a missing reading must never be shown as a measured zero.
++    """
++    times = daily.get('time') or []
++    temps = daily.get('temperature_2m_mean') or []
++    precip = daily.get('precipitation_sum') or []
++
++    monthly: Dict[str, Dict[str, Any]] = {}
++    for i, day in enumerate(times):
++        month_key = day[:7]  # YYYY-MM
++        m = monthly.setdefault(month_key, {"temps": [], "precip": 0.0, "precip_days": 0, "last_date": None})
++        t = temps[i] if i < len(temps) else None
++        if isinstance(t, (int, float)):
++            m["temps"].append(float(t))
++        p = precip[i] if i < len(precip) else None
++        if isinstance(p, (int, float)):
++            m["precip"] += float(p)
++            m["precip_days"] += 1
++            m["last_date"] = day
++
++    history: List[Dict[str, Any]] = []
++    for month in sorted(monthly):
++        m = monthly[month]
++        avg = round(sum(m["temps"]) / len(m["temps"]), 1) if m["temps"] else None
++        rain = round(m["precip"], 1) if m["precip_days"] else None
+         history.append({
+-            "month": month_date.strftime("%Y-%m"),
+-            "avg_temp_c": round(temp, 1),
+-            "total_rainfall_mm": round(max(0, rainfall), 1)
++            "month": month,
++            "avg_temp_c": avg,
++            "total_rainfall_mm": rain,
++            # Last day actually covered by the archive (it lags ~5 days),
++            # so the UI can label a partial month honestly.
++            "data_through": m["last_date"],
+         })
+     return history
+ 
+-def get_live_climate_trends(lat: float, lon: float, months_back: int = 6) -> tuple:
++
++def get_live_climate_trends(lat: float, lon: float, months_back: int = 6,
++                            now: Optional[datetime] = None) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+     """
+-    Fetches real historical climate data from Open-Meteo Archive API.
+-    Groups daily data into monthly summaries for the dashboard charts.
++    Monthly mean temperature and rainfall totals for the last `months_back`
++    months, from the Open-Meteo historical archive (ERA5-based).
+ 
+-    Returns (history, is_real) — is_real is False whenever the synthetic
+-    fallback fired (rate limited or API error), so callers can label the
+-    response honestly instead of always claiming live data regardless of
+-    what actually happened.
++    Returns (history, status):
++      - success: (months, {"data_source": "real_openmeteo", "cached": bool})
++      - failure: ([],     {"data_source": "unavailable", "reason": "..."})
++    Never returns invented values.
+     """
+-    # Archive has ~5 day lag, so we fetch up to 5 days ago
+-    end_date = (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d')
+-    start_date = (datetime.now() - timedelta(days=30 * months_back)).strftime('%Y-%m-%d')
+-    
+-    url = f"https://archive-api.open-meteo.com/v1/archive?latitude={lat}&longitude={lon}&start_date={start_date}&end_date={end_date}&daily=temperature_2m_mean,precipitation_sum&timezone=GMT"
+-    
++    now = now or datetime.now()
++    end_date = (now - timedelta(days=TRENDS_ARCHIVE_LAG_DAYS)).strftime('%Y-%m-%d')
++    start_date = (now - timedelta(days=30 * months_back)).strftime('%Y-%m-%d')
++    key = (round(lat, TRENDS_CACHE_DECIMALS), round(lon, TRENDS_CACHE_DECIMALS), months_back, end_date)
++
++    cached = _trends_cache_get(key)
++    if cached is not None:
++        return cached, {"data_source": "real_openmeteo", "cached": True}
++
++    params = {
++        "latitude": lat, "longitude": lon,
++        "start_date": start_date, "end_date": end_date,
++        "daily": "temperature_2m_mean,precipitation_sum", "timezone": "GMT",
++    }
+     try:
+-        logger.info(f"Fetching Open-Meteo data for {lat},{lon}")
+-        response = requests.get(url, timeout=10)
+-        
++        logger.info(f"Fetching Open-Meteo archive trends for {lat},{lon}")
++        response = requests.get(_ARCHIVE_URL, params=params, timeout=10)
+         if response.status_code == 429:
+-            logger.warning("Open-Meteo Rate Limited. Using fallback.")
+-            return _generate_fallback_data(lat, lon, months_back), False
+-            
++            logger.warning("Open-Meteo archive rate limited; monthly trends unavailable.")
++            return [], {"data_source": "unavailable",
++                        "reason": "Open-Meteo rate limit reached (HTTP 429); try again in a minute."}
+         response.raise_for_status()
+-        data = response.json()
+-        
+-        daily = data.get('daily', {})
+-        times = daily.get('time', [])
+-        temps = daily.get('temperature_2m_mean', [])
+-        precip = daily.get('precipitation_sum', [])
+-        
+-        # Group by month
+-        monthly_stats: Dict[str, Dict[str, Any]] = {}
+-        for i in range(len(times)):
+-            month_key = times[i][:7] # YYYY-MM
+-            if month_key not in monthly_stats:
+-                monthly_stats[month_key] = {"temps": [], "precip": 0.0, "last_date": None}
+-            if i < len(precip) and precip[i] is not None:
+-                monthly_stats[month_key]["last_date"] = times[i]
+-            
+-            if i < len(temps) and temps[i] is not None:
+-                val = temps[i]
+-                if isinstance(val, (int, float)):
+-                    monthly_stats[month_key]["temps"].append(float(val))
+-            if i < len(precip) and precip[i] is not None:
+-                p_val = precip[i]
+-                if isinstance(p_val, (int, float)):
+-                    monthly_stats[month_key]["precip"] += float(p_val)
+-        
+-        history: List[Dict[str, Any]] = []
+-        for month in sorted(monthly_stats.keys()):
+-            t_list: List[float] = monthly_stats[month]["temps"]
+-            avg_temp = sum(t_list) / len(t_list) if t_list else 0.0
+-            history.append({
+-                "month": month,
+-                "avg_temp_c": round(float(avg_temp), 1),
+-                "total_rainfall_mm": round(float(monthly_stats[month]["precip"]), 1),
+-                # Last day actually covered by the archive (it lags ~5
+-                # days), so the UI can label a partial month honestly.
+-                "data_through": monthly_stats[month]["last_date"],
+-            })
+-            
+-        return history, True
++        history = _summarize_monthly(response.json().get('daily') or {})
+     except Exception as e:
+-        logger.error(f"Open-Meteo API Error: {e}. Falling back to simulation.")
+-        return _generate_fallback_data(lat, lon, months_back), False
++        logger.error(f"Open-Meteo archive error: {e}")
++        return [], {"data_source": "unavailable",
++                    "reason": f"Open-Meteo historical archive unreachable ({type(e).__name__})."}
++
++    if not history:
++        return [], {"data_source": "unavailable",
++                    "reason": "Open-Meteo returned no archive data for this point and period."}
++
++    _trends_cache_put(key, history)
++    return history, {"data_source": "real_openmeteo", "cached": False}
+ 
+ GRID_STEP = 20  # Coarser grid for faster load
+ GRID_CACHE_EXPIRY = 3600  # 1 hour — genuinely current conditions, refresh hourly
+@@ -424,15 +459,14 @@ def get_location_climate(lat: float, lon: float) -> Dict[str, Any]:
+     """
+     Monthly history (archive) + REAL current temperature + REAL anomaly.
+ 
+-    - historical_trends: monthly summaries (avg of daily MAX temperature,
+-      total rainfall) — kept for the charts; NOT the current temperature.
++    - historical_trends: monthly summaries (mean daily temperature, total
++      rainfall) for the charts and the rainfall card; [] when the archive
++      is unavailable (never a synthetic substitute).
+     - current: model-based current conditions at the exact coordinates
+       (see services/current_conditions.py). This is what the Insight
+       "Temperature" stat shows, matching how weather apps work.
+     - current_anomaly: recent 7-day mean vs the 1991-2020 mean for the
+-      same calendar days, both from the same reanalysis archive. Replaces
+-      the old comparison of a monthly mean of daily MAXIMA against a
+-      latitude/season formula (which produced e.g. +13 C for Nagpur).
++      same calendar days, both from the same reanalysis archive.
+       None when it can't be computed — never a placeholder.
+     The three upstream calls run in parallel.
+     """
+@@ -442,20 +476,22 @@ def get_location_climate(lat: float, lon: float) -> Dict[str, Any]:
+         f_hist = pool.submit(get_live_climate_trends, lat, lon)
+         f_cur = pool.submit(current_conditions.get_current_temperature, lat, lon)
+         f_anom = pool.submit(current_conditions.get_temperature_anomaly, lat, lon)
+-        history, is_real = f_hist.result()
++        history, trends_status = f_hist.result()
+         current = f_cur.result()
+         anomaly = f_anom.result()
+ 
++    available = trends_status.get("data_source") == "real_openmeteo"
+     return {
+         "location": {"lat": lat, "lon": lon},
+         "historical_trends": history,
+         "current": current,
+         "current_anomaly": anomaly.get("anomaly_c"),
+         "anomaly": anomaly,
+-        "source": "Open-Meteo Live API" if is_real else "Estimated (Open-Meteo unavailable — seasonal/latitude model used instead)",
+-        # data_source describes historical_trends only; current and
+-        # anomaly carry their own data_source fields.
+-        "data_source": "real_openmeteo" if is_real else "estimated_fallback"
++        "source": "Open-Meteo historical archive" if available else "Unavailable",
++        # data_source / trends_reason describe historical_trends only;
++        # current and anomaly carry their own data_source fields.
++        "data_source": trends_status.get("data_source", "unavailable"),
++        "trends_reason": trends_status.get("reason"),
+     }
+ 
+ 
+diff --git a/backend/services/mock_data.py b/backend/services/mock_data.py
+index 849c098..ef4223c 100644
+--- a/backend/services/mock_data.py
++++ b/backend/services/mock_data.py
+@@ -1,6 +1,7 @@
+ import os
+ import requests
+ from datetime import datetime, timedelta
++from typing import Optional
+ 
+ # WAQI token now read from environment (.env), never hardcoded in source.
+ # Falls back to a demo token only if nothing is configured, so local dev
+@@ -18,13 +19,14 @@ _NOAA_CO2_URL = "https://gml.noaa.gov/webdata/ccgg/trends/co2/co2_mm_gl.csv"
+ _co2_cache = {"value": None, "fetched_at": None}
+ 
+ 
+-def get_real_global_co2_ppm() -> float:
++def get_real_global_co2_ppm() -> Optional[float]:
+     """
+     Fetch the most recent real globally-averaged CO2 reading (ppm) from
+     NOAA GML. Cached for 24 hours since this updates monthly, not per
+-    request. Falls back to the last known real value (or a conservative
+-    recent-real-world estimate) if NOAA is unreachable — NEVER falls back
+-    to a random number.
++    request. If NOAA is unreachable, returns the last real value fetched by
++    this server process; if there is none, returns None. It never returns a
++    hardcoded or random figure (an earlier version returned a fixed 424.0,
++    which the UI then badged LIVE).
+     """
+     now = datetime.utcnow()
+     if (_co2_cache["value"] is not None and _co2_cache["fetched_at"]
+@@ -57,11 +59,17 @@ def get_real_global_co2_ppm() -> float:
+     except Exception as e:
+         print(f"NOAA CO2 fetch failed (using last known/fallback value): {e}")
+ 
+-    # Fallback only if NOAA is unreachable AND we have no prior cached value:
+-    # a labeled, conservative recent real-world figure, not a random guess.
++    # NOAA unreachable: the last real reading this process fetched, else None.
+     if _co2_cache["value"] is not None:
+         return _co2_cache["value"]
+-    return 424.0  # approx. real global mean as of early 2025; update periodically
++    return None
++
++
++def _co2_fields() -> dict:
++    """co2_ppm plus its provenance, for the environment payloads."""
++    value = get_real_global_co2_ppm()
++    return {"co2_ppm": value,
++            "co2_data_source": "live_noaa_gml" if value is not None else "unavailable"}
+ 
+ WAQI_MAX_STATION_DISTANCE_KM = 50.0
+ WAQI_MAX_AGE_HOURS = 24.0
+@@ -157,7 +165,7 @@ def _waqi_reading(lat: float, lon: float):
+         "temperature_c": temp,
+         "air_quality_index": aqi,
+         "pm25": pm25,
+-        "co2_ppm": get_real_global_co2_ppm(),  # real NOAA GML data, not random
++        **_co2_fields(),  # real NOAA GML data, or None + "unavailable"
+         "location": {"lat": lat, "lon": lon},
+         "data_source": data_source,
+         "aqi_station": station,
+@@ -276,7 +284,7 @@ def generate_environment_data(lat: float, lon: float):
+         "temperature_c": temp,
+         "air_quality_index": aqi,
+         "pm25": pm25,
+-        "co2_ppm": get_real_global_co2_ppm(),  # real NOAA GML data, not random
++        **_co2_fields(),  # real NOAA GML data, or None + "unavailable"
+         "location": {"lat": lat, "lon": lon},
+         "data_source": data_source,
+         "aqi_source": aqi_source,          # human label of the source used
+diff --git a/backend/services/modis_ndvi.py b/backend/services/modis_ndvi.py
+index 26c0773..4105104 100644
+--- a/backend/services/modis_ndvi.py
++++ b/backend/services/modis_ndvi.py
+@@ -1,6 +1,5 @@
+ import json
+ import os
+-import random
+ import logging
+ import math
+ import requests
+diff --git a/backend/services/scenario_engine.py b/backend/services/scenario_engine.py
+index 8c00fd7..29e6411 100644
+--- a/backend/services/scenario_engine.py
++++ b/backend/services/scenario_engine.py
+@@ -185,7 +185,7 @@ class ScenarioResult:
+ 
+ def apply_deforestation_scenario(
+     current_temp_c: Optional[float],
+-    current_co2_ppm: float,
++    current_co2_ppm: Optional[float],   # accepted for context; not used in the cited calculations
+     forest_loss_pct: float,
+     is_tropical: bool = True,
+ ) -> list[MetricChange]:
+@@ -398,7 +398,7 @@ def run_scenario(
+     if forest_loss_pct > 0:
+         all_changes.extend(apply_deforestation_scenario(
+             current_temp_c=current_data.get("temperature_c"),
+-            current_co2_ppm=current_data.get("co2_ppm", 420.0),
++            current_co2_ppm=current_data.get("co2_ppm"),   # None when NOAA is unavailable
+             forest_loss_pct=forest_loss_pct,
+             is_tropical=is_tropical,
+         ))
+diff --git a/backend/tests/test_climate_trends.py b/backend/tests/test_climate_trends.py
+new file mode 100644
+index 0000000..88c2c0f
+--- /dev/null
++++ b/backend/tests/test_climate_trends.py
+@@ -0,0 +1,193 @@
++"""
++Regression tests: monthly climate trends and CO2 must never show invented
++values, and the archive request must be cached. No network access.
++
++Background: an earlier version replaced a failed or rate-limited Open-Meteo
++archive request with a latitude/season formula plus random noise, and the
++CO2 card fell back to a fixed 424.0 ppm that the UI badged LIVE. Both were
++removed; these tests pin that down.
++
++Run from backend/:   python -m unittest tests.test_climate_trends -v
++"""
++import sys
++import unittest
++from datetime import datetime
++from pathlib import Path
++from unittest.mock import patch, MagicMock
++
++import requests
++
++sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
++
++from services import climate, mock_data          # noqa: E402
++
++NOW = datetime(2026, 11, 4, 12, 0)
++POINT = (39.80, -122.95)
++
++
++def _resp(payload, status=200):
++    m = MagicMock()
++    m.status_code = status
++    m.json.return_value = payload
++    if status >= 400 and status != 429:
++        m.raise_for_status.side_effect = requests.HTTPError(f"HTTP {status}")
++    else:
++        m.raise_for_status = lambda: None
++    return m
++
++
++def _archive(days):
++    """days: list of (date, temp_mean or None, precip or None)."""
++    return {"daily": {"time": [d for d, _, _ in days],
++                      "temperature_2m_mean": [t for _, t, _ in days],
++                      "precipitation_sum": [p for _, _, p in days]}}
++
++
++GOOD = _archive([
++    ("2026-09-29", 20.0, 1.0), ("2026-09-30", 22.0, 2.5),
++    ("2026-10-01", 18.0, 0.0), ("2026-10-02", 16.0, 4.0),
++])
++
++
++class TestNoSyntheticFallback(unittest.TestCase):
++    def setUp(self):
++        climate._trends_cache.clear()
++
++    def test_synthetic_generator_is_gone(self):
++        self.assertFalse(hasattr(climate, "_generate_fallback_data"))
++        self.assertNotIn("random", climate.__dict__)
++
++    def test_rate_limit_returns_no_months_and_a_reason(self):
++        with patch.object(climate.requests, "get", return_value=_resp({}, status=429)):
++            history, status = climate.get_live_climate_trends(*POINT, now=NOW)
++        self.assertEqual(history, [])
++        self.assertEqual(status["data_source"], "unavailable")
++        self.assertIn("429", status["reason"])
++
++    def test_network_error_returns_no_months_and_a_reason(self):
++        with patch.object(climate.requests, "get", side_effect=requests.ConnectionError("down")):
++            history, status = climate.get_live_climate_trends(*POINT, now=NOW)
++        self.assertEqual(history, [])
++        self.assertEqual(status["data_source"], "unavailable")
++        self.assertIn("unreachable", status["reason"])
++
++    def test_http_error_returns_no_months(self):
++        with patch.object(climate.requests, "get", return_value=_resp({}, status=500)):
++            history, status = climate.get_live_climate_trends(*POINT, now=NOW)
++        self.assertEqual(history, [])
++        self.assertEqual(status["data_source"], "unavailable")
++
++    def test_empty_archive_is_unavailable_not_zero(self):
++        with patch.object(climate.requests, "get", return_value=_resp({"daily": {}})):
++            history, status = climate.get_live_climate_trends(*POINT, now=NOW)
++        self.assertEqual(history, [])
++        self.assertEqual(status["data_source"], "unavailable")
++
++
++class TestMonthlySummary(unittest.TestCase):
++    def test_monthly_means_and_totals(self):
++        h = climate._summarize_monthly(GOOD["daily"])
++        self.assertEqual([m["month"] for m in h], ["2026-09", "2026-10"])
++        self.assertEqual(h[0]["avg_temp_c"], 21.0)
++        self.assertEqual(h[0]["total_rainfall_mm"], 3.5)
++        self.assertEqual(h[1]["avg_temp_c"], 17.0)
++        self.assertEqual(h[1]["total_rainfall_mm"], 4.0)
++        self.assertEqual(h[1]["data_through"], "2026-10-02")
++
++    def test_measured_zero_rain_is_kept_as_zero(self):
++        h = climate._summarize_monthly(_archive([("2026-10-01", 18.0, 0.0)])["daily"])
++        self.assertEqual(h[0]["total_rainfall_mm"], 0.0)
++
++    def test_missing_values_are_none_not_zero(self):
++        h = climate._summarize_monthly(_archive([("2026-10-01", None, None),
++                                                 ("2026-10-02", None, None)])["daily"])
++        self.assertIsNone(h[0]["avg_temp_c"])
++        self.assertIsNone(h[0]["total_rainfall_mm"])
++        self.assertIsNone(h[0]["data_through"])
++
++
++class TestTrendsCache(unittest.TestCase):
++    def setUp(self):
++        climate._trends_cache.clear()
++
++    def test_second_call_is_served_from_cache(self):
++        with patch.object(climate.requests, "get", return_value=_resp(GOOD)) as get:
++            h1, s1 = climate.get_live_climate_trends(*POINT, now=NOW)
++            h2, s2 = climate.get_live_climate_trends(*POINT, now=NOW)
++        self.assertEqual(get.call_count, 1)
++        self.assertEqual(h1, h2)
++        self.assertFalse(s1["cached"])
++        self.assertTrue(s2["cached"])
++        self.assertEqual(s2["data_source"], "real_openmeteo")
++
++    def test_failures_are_not_cached(self):
++        with patch.object(climate.requests, "get", return_value=_resp({}, status=429)):
++            climate.get_live_climate_trends(*POINT, now=NOW)
++        with patch.object(climate.requests, "get", return_value=_resp(GOOD)) as get:
++            history, status = climate.get_live_climate_trends(*POINT, now=NOW)
++        self.assertEqual(get.call_count, 1)
++        self.assertEqual(status["data_source"], "real_openmeteo")
++        self.assertTrue(history)
++
++    def test_new_day_refetches(self):
++        with patch.object(climate.requests, "get", return_value=_resp(GOOD)) as get:
++            climate.get_live_climate_trends(*POINT, now=NOW)
++            climate.get_live_climate_trends(*POINT, now=datetime(2026, 11, 5, 12, 0))
++        self.assertEqual(get.call_count, 2)
++
++    def test_expired_entry_refetches(self):
++        with patch.object(climate.requests, "get", return_value=_resp(GOOD)) as get:
++            climate.get_live_climate_trends(*POINT, now=NOW)
++            for key, (ts, h) in list(climate._trends_cache.items()):
++                climate._trends_cache[key] = (ts - climate.TRENDS_CACHE_TTL_S - 1, h)
++            climate.get_live_climate_trends(*POINT, now=NOW)
++        self.assertEqual(get.call_count, 2)
++
++    def test_cache_is_bounded(self):
++        with patch.object(climate.requests, "get", return_value=_resp(GOOD)):
++            for i in range(climate.TRENDS_MAX_CACHE_ENTRIES + 10):
++                climate.get_live_climate_trends(10 + i * 0.1, 20.0, now=NOW)
++        self.assertLessEqual(len(climate._trends_cache), climate.TRENDS_MAX_CACHE_ENTRIES)
++
++
++class TestLocationClimate(unittest.TestCase):
++    def setUp(self):
++        climate._trends_cache.clear()
++
++    def test_archive_failure_is_reported_not_filled(self):
++        from services import current_conditions
++        with patch.object(climate.requests, "get", side_effect=requests.ConnectionError("down")), \
++             patch.object(current_conditions, "get_current_temperature",
++                          return_value={"temperature_c": 12.3, "data_source": "real_openmeteo"}), \
++             patch.object(current_conditions, "get_temperature_anomaly",
++                          return_value={"anomaly_c": None, "status": "unavailable"}):
++            res = climate.get_location_climate(*POINT)
++        self.assertEqual(res["historical_trends"], [])
++        self.assertEqual(res["data_source"], "unavailable")
++        self.assertTrue(res["trends_reason"])
++        self.assertEqual(res["current"]["temperature_c"], 12.3)
++
++
++class TestCo2NeverInvented(unittest.TestCase):
++    def setUp(self):
++        self._saved = dict(mock_data._co2_cache)
++        mock_data._co2_cache.update({"value": None, "fetched_at": None})
++
++    def tearDown(self):
++        mock_data._co2_cache.update(self._saved)
++
++    def test_noaa_down_with_no_prior_value_is_none(self):
++        with patch.object(mock_data.requests, "get", side_effect=requests.ConnectionError("down")):
++            self.assertIsNone(mock_data.get_real_global_co2_ppm())
++            fields = mock_data._co2_fields()
++        self.assertEqual(fields, {"co2_ppm": None, "co2_data_source": "unavailable"})
++
++    def test_noaa_down_keeps_last_real_value(self):
++        mock_data._co2_cache.update({"value": 425.1, "fetched_at": datetime(2000, 1, 1)})
++        with patch.object(mock_data.requests, "get", side_effect=requests.ConnectionError("down")):
++            fields = mock_data._co2_fields()
++        self.assertEqual(fields, {"co2_ppm": 425.1, "co2_data_source": "live_noaa_gml"})
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/benchmark_latency.py b/benchmark_latency.py
+index 66ba9e3..d28c97d 100644
+--- a/benchmark_latency.py
++++ b/benchmark_latency.py
+@@ -1,96 +1,145 @@
++"""
++End-to-end latency benchmark for GaiaNet Earth.
++
++Starts the FastAPI server, sends N sequential requests to each endpoint for
++a fixed point, and reports the FIRST request (empty in-memory caches) and
++the WARM requests (2..N) separately — averaging them together hides both.
++
++Upstream APIs are called live, so results depend on the network and on
++free-tier rate limits. Disk caches (e.g. 1991-2020 anomaly baselines) are
++NOT cleared, so a point checked before has a faster first request.
++
++Run from the project root (with the backend's virtualenv active):
++    python benchmark_latency.py
++"""
++import os
++import statistics
+ import subprocess
++import sys
+ import time
+-import urllib.request
+ import urllib.error
+-import sys
+-import os
++import urllib.request
+ 
+-def run_benchmark():
+-    # Start the FastAPI server
+-    backend_dir = os.path.join(os.getcwd(), "backend")
+-    print(f"Starting server in {backend_dir}...")
+-    server_process = subprocess.Popen(
+-        [sys.executable, "main.py"],
+-        cwd=backend_dir,
+-        stdout=subprocess.PIPE,
+-        stderr=subprocess.PIPE
+-    )
+-    
+-    # Wait for server to boot up
+-    time.sleep(3.0)
+-    
+-    status_url = "http://localhost:8000/api/status"
+-    climate_url = "http://localhost:8000/climate?lat=39.80&lon=-122.95"
+-    prediction_url = "http://localhost:8000/prediction?scenario=1_5&lat=39.80&lon=-122.95"
+-    
+-    # Verify server is up
+-    try:
+-        urllib.request.urlopen(status_url, timeout=2)
+-        print("Server is online!")
+-    except Exception as e:
+-        print(f"Failed to connect to server: {e}")
+-        server_process.terminate()
+-        return
+-
+-    # 1. Normal Conditions (Open-Meteo API live query)
+-    print("\n--- Benchmarking Normal API Fusion Latency (10 trials) ---")
+-    normal_latencies = []
+-    for i in range(10):
+-        start = time.perf_counter()
++# 127.0.0.1, not "localhost": on Windows "localhost" tries IPv6 (::1) first,
++# the server listens on IPv4 only, and each refused IPv6 attempt costs ~2 s,
++# which would be added to every measured request.
++BASE = "http://127.0.0.1:8000"
++LAT, LON = 39.80, -122.95
++TRIALS = 10
++PAUSE_S = 0.5
++ENDPOINTS = [
++    # No upstream work at all: whatever this costs is client/connection
++    # overhead, not GaiaNet.
++    ("Baseline (/api/status)", f"{BASE}/api/status"),
++    ("Point climate (/climate)", f"{BASE}/climate?lat={LAT}&lon={LON}"),
++    ("What-if (/prediction)", f"{BASE}/prediction?lat={LAT}&lon={LON}"),
++    ("Environment (/environment)", f"{BASE}/environment?lat={LAT}&lon={LON}"),
++]
++
++
++# Never route local requests through a system/corporate proxy: on Windows
++# urllib reads the proxy from the registry, and proxy handling (including the
++# proxy-bypass lookup) can add delay to every request.
++_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
++
++
++def _server_ms(resp):
++    """Server-side processing time from the Server-Timing header, if present."""
++    header = resp.headers.get("Server-Timing") or ""
++    for part in header.split(";"):
++        part = part.strip()
++        if part.startswith("dur="):
++            try:
++                return float(part[4:])
++            except ValueError:
++                return None
++    return None
++
++
++def wait_for_server(timeout_s: float = 60.0) -> bool:
++    deadline = time.time() + timeout_s
++    while time.time() < deadline:
+         try:
+-            with urllib.request.urlopen(climate_url, timeout=10) as resp:
+-                resp.read()
+-            end = time.perf_counter()
+-            latency = (end - start) * 1000  # ms
+-            normal_latencies.append(latency)
+-            print(f"Trial {i+1}: {latency:.2f} ms")
+-        except Exception as e:
+-            print(f"Trial {i+1} failed: {e}")
+-        time.sleep(0.5) # Prevent aggressive querying
++            _OPENER.open(f"{BASE}/api/status", timeout=2)
++            return True
++        except Exception:
++            time.sleep(0.5)
++    return False
+ 
+-    # 2. Prediction CCE logic Latency
+-    print("\n--- Benchmarking CCE Prediction Endpoint Latency (10 trials) ---")
+-    prediction_latencies = []
+-    for i in range(10):
++
++def time_requests(url: str):
++    """Returns (total_ms, server_ms) per trial; None entries for failures."""
++    totals, servers, failures = [], [], 0
++    for i in range(TRIALS):
+         start = time.perf_counter()
+         try:
+-            with urllib.request.urlopen(prediction_url, timeout=10) as resp:
++            with _OPENER.open(url, timeout=60) as resp:
+                 resp.read()
+-            end = time.perf_counter()
+-            latency = (end - start) * 1000
+-            prediction_latencies.append(latency)
+-            print(f"Trial {i+1}: {latency:.2f} ms")
++                srv = _server_ms(resp)
++            ms = (time.perf_counter() - start) * 1000
++            totals.append(ms)
++            servers.append(srv)
++            srv_s = f"{srv:.1f} ms" if srv is not None else "n/a"
++            print(f"  Trial {i + 1}: total {ms:.1f} ms | server {srv_s}")
+         except Exception as e:
+-            print(f"Trial {i+1} failed: {e}")
+-        time.sleep(0.5)
+-
+-    # 3. Throttled/Rate-limited Fallback Latency
+-    # We measure local fallback generation latency using python time (the database / generation part)
+-    # inside backend/services/climate.py: _generate_fallback_data
+-    sys.path.insert(0, backend_dir)
+-    from services.climate import _generate_fallback_data
+-    print("\n--- Benchmarking Rate-Limited Local Fallback Generation (1000 trials) ---")
+-    fallback_latencies = []
+-    for _ in range(1000):
+-        start = time.perf_counter()
+-        _generate_fallback_data(39.80, -122.95, 6)
+-        end = time.perf_counter()
+-        fallback_latencies.append((end - start) * 1000)
+-    
+-    # Terminate the server
+-    print("\nShutting down server...")
+-    server_process.terminate()
+-    server_process.wait()
+-    
+-    # Calculate stats
+-    avg_normal = sum(normal_latencies) / len(normal_latencies) if normal_latencies else 0
+-    avg_pred = sum(prediction_latencies) / len(prediction_latencies) if prediction_latencies else 0
+-    avg_fallback = sum(fallback_latencies) / len(fallback_latencies) if fallback_latencies else 0
+-    
+-    print("\n=== BENCHMARK RESULTS ===")
+-    print(f"Normal Climate API Fusion Latency (Live Open-Meteo Query): {avg_normal:.2f} ms (avg of {len(normal_latencies)} trials)")
+-    print(f"CCE Prediction Endpoint Latency (Formula computation): {avg_pred:.2f} ms (avg of {len(prediction_latencies)} trials)")
+-    print(f"Throttled Fallback Generation Latency (Local Synthesis): {avg_fallback:.4f} ms (avg of 1000 trials)")
++            failures += 1
++            totals.append(None)
++            servers.append(None)
++            print(f"  Trial {i + 1} failed: {e}")
++        time.sleep(PAUSE_S)
++    return totals, servers, failures
++
++
++def _stats(values) -> str:
++    v = [x for x in values if x is not None]
++    if len(v) >= 2:
++        return (f"{statistics.mean(v):,.0f} ± {statistics.stdev(v):,.0f}"
++                f" (median {statistics.median(v):,.0f}, max {max(v):,.0f})")
++    if v:
++        return f"{v[0]:,.0f}"
++    return "n/a"
++
++
++def summarize(name: str, totals, servers, failures: int) -> str:
++    def first(xs):
++        return f"{xs[0]:,.0f}" if xs and xs[0] is not None else "n/a"
++    note = f"  ({failures} failed)" if failures else ""
++    return (f"{name}{note}\n"
++            f"    first request : total {first(totals)} ms | server {first(servers)} ms\n"
++            f"    requests 2-{TRIALS} : total {_stats(totals[1:])} ms\n"
++            f"                    server {_stats(servers[1:])} ms")
++
++
++def run_benchmark():
++    backend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend")
++    print(f"Starting server in {backend_dir} ...")
++    # Server output is discarded: an unread PIPE can fill up and stall the
++    # server mid-benchmark.
++    server = subprocess.Popen([sys.executable, "main.py"], cwd=backend_dir,
++                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
++    try:
++        if not wait_for_server():
++            print("Server did not come up within 60 s.")
++            return
++        print(f"Server is online. Measuring against {BASE} (no proxy).\n")
++        results = []
++        for name, url in ENDPOINTS:
++            print(f"--- {name}: {TRIALS} sequential requests, {PAUSE_S} s apart ---")
++            totals, servers, failures = time_requests(url)
++            results.append(summarize(name, totals, servers, failures))
++            print()
++        print(f"=== RESULTS (ms), point ({LAT}, {LON}), base {BASE} ===")
++        print("total = measured by this script; server = time spent inside GaiaNet (Server-Timing header)")
++        for line in results:
++            print(line)
++    finally:
++        print("\nShutting down server...")
++        server.terminate()
++        try:
++            server.wait(timeout=10)
++        except subprocess.TimeoutExpired:
++            server.kill()
++
+ 
+ if __name__ == "__main__":
+     run_benchmark()
+diff --git a/index.html b/index.html
+index c76a6cd..1f57f07 100644
+--- a/index.html
++++ b/index.html
+@@ -938,7 +938,7 @@
+     <script src="js/config.js"></script>
+     <script src="js/state.js"></script>
+     <script src="js/api.js?v=15"></script>
+-    <script src="js/ui.js?v=46"></script>
++    <script src="js/ui.js?v=47"></script>
+     <script src="js/weather.js"></script>
+     <script src="js/snapshot-viewer.js"></script>
+     <script src="js/globe.js?v=36"></script>
+diff --git a/js/ui.js b/js/ui.js
+index 42f64db..8023295 100644
+--- a/js/ui.js
++++ b/js/ui.js
+@@ -1929,11 +1929,11 @@ class UIManager {
+             // monthly figure once fetched successfully, so it always
+             // reads LIVE here rather than tracking AQI's source.
+             this._setStatBadge('stat-aqi', envData.data_source);
+-            // CO2 always comes from a real NOAA GML reading (see
+-            // mock_data.get_real_global_co2_ppm) — it's either today's
+-            // fetch or the last successfully cached real value, never a
+-            // fabricated fallback, so this always reads LIVE.
+-            this._setStatBadge('stat-co2', 'live');
++            // CO2 is a real NOAA GML reading (today's fetch or the last
++            // real value this server fetched) or null when NOAA has been
++            // unreachable since start-up. Badge LIVE only for a real value.
++            const co2Available = envData.co2_ppm !== null && envData.co2_ppm !== undefined;
++            this._setStatBadge('stat-co2', co2Available ? 'live' : null);
+         }
+ 
+         if (ndviData) {
+@@ -1953,8 +1953,9 @@ class UIManager {
+             }
+         }
+ 
+-        // Update Charts
+-        const history = climateData.historical_trends;
++        // Update Charts (empty when the archive is unavailable — the charts
++        // then show no bars rather than invented months)
++        const history = climateData.historical_trends || [];
+         const labels = history.map(h => {
+              const parts = h.month.split('-');
+              const d = new Date(parts[0], parts[1]-1 || 0);
+@@ -2002,8 +2003,13 @@ class UIManager {
+         setTimeout(() => {
+             if (scanOverlay) scanOverlay.classList.add('hidden');
+ 
+-            const history = climateData.historical_trends;
+-            const latest = history[history.length - 1];
++            const history = climateData.historical_trends || [];
++            const latest = history.length ? history[history.length - 1] : null;
++            // Recorded monthly rainfall is shown only when the archive
++            // actually returned it; otherwise "n/a" with the reason (the
++            // backend no longer substitutes a synthetic month).
++            const rainAvailable = climateData.data_source === 'real_openmeteo'
++                && !!latest && latest.total_rainfall_mm !== null && latest.total_rainfall_mm !== undefined;
+ 
+             // Temperature = model-based CURRENT conditions at the exact
+             // clicked coordinates (Open-Meteo current=, see backend
+@@ -2030,11 +2036,15 @@ class UIManager {
+                     tempSubEl.textContent = parts.join(' · ');
+                 }
+             }
+-            document.getElementById('node-precip').innerText = `${latest.total_rainfall_mm}mm`;
++            document.getElementById('node-precip').innerText = rainAvailable ? `${latest.total_rainfall_mm}mm` : 'n/a';
+             // This is the latest month's RECORDED total from the archive
+             // (which lags ~5 days) — not rain falling now. Say so.
+             const precipSubEl = document.getElementById('node-precip-sub');
+-            if (precipSubEl) {
++            if (precipSubEl && !rainAvailable) {
++                precipSubEl.textContent = 'Monthly rainfall unavailable right now';
++                precipSubEl.title = climateData.trends_reason || '';
++            } else if (precipSubEl) {
++                precipSubEl.title = '';
+                 const [yy, mm] = (latest.month || '').split('-').map(Number);
+                 const monthName = (yy && mm) ? new Date(yy, mm - 1, 15).toLocaleDateString(undefined, { month: 'short' }) : '';
+                 let label = monthName ? `${monthName} total` : 'Monthly total';
+@@ -2117,8 +2127,9 @@ class UIManager {
+             }
+ 
+             // climateData.data_source is "real_openmeteo" or
+-            // "estimated_fallback" — applies to temp/rainfall/anomaly,
+-            // all three of which come from the same Open-Meteo call.
++            // "unavailable" and describes the monthly archive data
++            // (rainfall card, charts); current temperature and the
++            // anomaly carry their own data_source fields.
+             // Temperature: LIVE only when current conditions actually came
+             // back; no badge at all when unavailable (EST would imply a
+             // fallback number is being shown, and none is).
+@@ -2128,13 +2139,13 @@ class UIManager {
+                 tempBadge.title = 'Model-based current conditions at these exact coordinates (Open-Meteo, ~15-min resolution). '
+                     + 'Weather apps use similar models, so small differences (1–2 °C) between apps are normal.';
+             }
+-            // Recorded archive data, not a live reading: ARCHIVE badge
+-            // (EST only if the synthetic fallback fired).
+-            if (climateData.data_source === 'real_openmeteo') {
++            // Recorded archive data, not a live reading: ARCHIVE badge.
++            // No badge at all when unavailable (nothing is being shown).
++            if (rainAvailable) {
+                 this._setArchiveBadge('node-precip', 'Recorded daily totals summed for the month '
+                     + '(Open-Meteo historical archive, ~5-day lag). Not current rainfall.');
+             } else {
+-                this._setStatBadge('node-precip', climateData.data_source);
++                this._setStatBadge('node-precip', null);
+             }
+             // Anomaly is a derived comparison of real data, not a direct
+             // reading (and the archive lags ~5 days) — FORMULA, not LIVE.
+@@ -2169,7 +2180,8 @@ class UIManager {
+                     if (envData.aqi_attempts && envData.aqi_attempts.length) tip += `\nSkipped: ${envData.aqi_attempts.join('; ')}`;
+                     aqiBadge.title = tip;
+                 }
+-                this._setStatBadge('node-co2', 'live'); // real NOAA GML reading, see stat-co2 above
++                // LIVE only for a real NOAA GML reading; no badge when null.
++                this._setStatBadge('node-co2', (envData.co2_ppm !== null && envData.co2_ppm !== undefined) ? 'live' : null);
+ 
+                 // AQI color + category, reusing the same _aqiColor() scale
+                 // already driving the forecast chart bars and globe dots.
+diff --git a/start_project.bat b/start_project.bat
+index 37a774b..02b1db7 100644
+--- a/start_project.bat
++++ b/start_project.bat
+@@ -1,45 +1,104 @@
+ @echo off
+-SETLOCAL EnableDelayedExpansion
++setlocal EnableExtensions
++title GaiaNet Earth - Launcher
++:: Always run from the project folder, even from a shortcut or another directory.
++cd /d "%~dp0"
++
++set "PORT=8000"
++set "URL=http://localhost:%PORT%"
+ 
+ echo ==========================================
+-echo    GaiaNet Earth - NASA Digital Twin
+-echo          Initializing Project...
++echo    GaiaNet Earth - Digital Twin of Earth
+ echo ==========================================
+ 
+-:: Check if Python is installed
++:: --- 0. Python available? ---------------------------------------------------
++:: (python --version, not "where", so the Microsoft Store stub does not count)
+ python --version >nul 2>&1
+-if %errorlevel% neq 0 (
+-    echo [ERROR] Python is not installed. Please install Python to continue.
++if errorlevel 1 (
++    echo [ERROR] Python was not found. Install Python 3.11+ and tick "Add python.exe to PATH".
+     pause
+-    exit /b
++    exit /b 1
++)
++
++:: --- 1. Stop any old server still holding the port ----------------------------
++:: An old server left running keeps serving OLD code, so it is always replaced.
++set "STOPPED=0"
++for /f "tokens=5" %%P in ('netstat -ano ^| findstr /r /c:":%PORT% .*LISTENING"') do (
++    taskkill /F /PID %%P >nul 2>&1
++    set "STOPPED=1"
++)
++if "%STOPPED%"=="1" (
++    echo [1/4] Stopped the old server on port %PORT%.
++    timeout /t 1 /nobreak >nul
++) else (
++    echo [1/4] No old server running.
+ )
+ 
+-:: 1. Setup Backend & Frontend
+-echo [1/2] Setting up Unified Server...
++:: --- 2. Virtual environment and dependencies --------------------------------
++:: pip runs only on the first start or when requirements.txt has changed.
+ cd backend
+-if not exist venv (
+-    echo Creating virtual environment...
++if not exist "venv\Scripts\python.exe" (
++    echo [2/4] Creating virtual environment - first run only...
+     python -m venv venv
++    if errorlevel 1 (
++        echo [ERROR] Could not create the virtual environment.
++        pause
++        exit /b 1
++    )
+ )
+-call venv\Scripts\activate
+-echo Installing dependencies...
+-pip install -r requirements.txt
+-if %errorlevel% neq 0 (
+-    echo [ERROR] Failed to install dependencies. Please check the error messages above.
+-    pause
+-    exit /b
++
++set "NEED_INSTALL=1"
++if exist "venv\requirements.installed.txt" (
++    fc /b "requirements.txt" "venv\requirements.installed.txt" >nul 2>&1 && set "NEED_INSTALL=0"
++)
++if "%NEED_INSTALL%"=="1" (
++    echo [2/4] Installing dependencies...
++    "venv\Scripts\python.exe" -m pip install -r requirements.txt
++    if errorlevel 1 (
++        echo [ERROR] Failed to install dependencies. See the messages above.
++        pause
++        exit /b 1
++    )
++    copy /y "requirements.txt" "venv\requirements.installed.txt" >nul
++) else (
++    echo [2/4] Dependencies up to date.
+ )
+-start "GaiaNet Unified Server" cmd /k "venv\Scripts\activate && python main.py"
++
++if not exist ".env" (
++    if exist ".env.example" (
++        copy /y ".env.example" ".env" >nul
++        echo [!] Created backend\.env from .env.example - add your API keys there.
++    )
++)
++
++:: --- 3. Start the server in its own minimised window ---------------------------
++echo [3/4] Starting server...
++start "GaiaNet Earth Server" /min cmd /k "venv\Scripts\python.exe main.py"
+ cd ..
+ 
+-:: 2. Launch Browser
+-echo [2/2] Launching Dashboard...
+-timeout /t 5 /nobreak >nul
+-start http://localhost:8000
++:: --- 4. Open the dashboard as soon as the server answers -----------------------
++:: Checks the port on 127.0.0.1 directly. "localhost" resolves to IPv6 (::1)
++:: first on Windows, but the server listens on IPv4 only, and a refused
++:: connection takes ~2 s to fail on Windows, so a localhost check can time
++:: out even though the server is up. A plain TCP check also skips any proxy.
++echo [4/4] Waiting for the server to respond...
++powershell -NoProfile -ExecutionPolicy Bypass -Command "$deadline = (Get-Date).AddSeconds(90); while ((Get-Date) -lt $deadline) { $c = New-Object System.Net.Sockets.TcpClient; try { $c.Connect('127.0.0.1', %PORT%); $c.Close(); exit 0 } catch { $c.Close(); Start-Sleep -Milliseconds 500 } }; exit 1"
++if errorlevel 1 (
++    echo [WARNING] Could not confirm the server within 90 seconds - opening the dashboard anyway.
++    echo           If the page does not load, check the "GaiaNet Earth Server" window for an error.
++    start "" "%URL%"
++    pause
++    exit /b 1
++)
++
++start "" "%URL%"
+ 
+ echo ==========================================
+-echo    GaiaNet Earth is running!
+-echo    - Global Dashboard: http://localhost:8000
+-echo    - API Docs: http://localhost:8000/docs
++echo    GaiaNet Earth is running
++echo    Dashboard : %URL%
++echo    API docs  : %URL%/docs
++echo    To stop   : close the "GaiaNet Earth Server" window
++echo    Page looks unchanged? Press Ctrl+Shift+R
+ echo ==========================================
+-pause
++timeout /t 5 >nul
++exit /b 0

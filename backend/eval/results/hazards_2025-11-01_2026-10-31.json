@@ -1,0 +1,1520 @@
+{
+  "run_at": "2026-11-05T13:13:54.722598+00:00",
+  "window": {
+    "start": "2025-11-01",
+    "end": "2026-10-31"
+  },
+  "usgs_minmag": 4.0,
+  "counts": {
+    "gdacs_events": 14808,
+    "usgs_events": 16177,
+    "gdacs_by_type": {
+      "DR": 37,
+      "FL": 675,
+      "WF": 8015,
+      "TC": 102,
+      "EQ": 5951,
+      "VO": 28
+    }
+  },
+  "E1": {
+    "gdacs_earthquakes": 5951,
+    "usgs_earthquakes": 16167,
+    "reference": {
+      "sources": {
+        "NEIC": 415,
+        "ALASKA EC": 4,
+        "PTWC": 1
+      },
+      "details_read": 420,
+      "random_sample_requested": 400,
+      "random_sample_read": 400,
+      "no_source_id": 0,
+      "source_id_not_in_usgs_set": 3,
+      "unresolved_sample": [
+        "ak2025xjbvqv",
+        "pt26297050",
+        "us6000tits"
+      ]
+    },
+    "gaianet_thresholds": {
+      "km": 100,
+      "h": 1,
+      "dmag": 0.5
+    },
+    "gaianet_random_sample": {
+      "evaluable": 397,
+      "predicted": 396,
+      "correct": 396,
+      "precision": 1.0,
+      "recall": 0.9975
+    },
+    "gaianet_orange_red": {
+      "evaluable": 21,
+      "predicted": 20,
+      "correct": 20,
+      "precision": 1.0,
+      "recall": 0.9524
+    },
+    "matched_total": 5889,
+    "listed_twice_without_dedup": 5889,
+    "listed_twice_without_dedup_note": "GDACS earthquakes that also appear in the USGS feed and would be shown as two events if pass 1 were removed (GaiaNet's own matches).",
+    "errors_sample": [
+      {
+        "gdacs": "gdacs:EQ:1511182",
+        "reference": "us6000rpcc",
+        "predicted": null
+      },
+      {
+        "gdacs": "gdacs:EQ:1548377",
+        "reference": "us6000t7zp",
+        "predicted": null
+      }
+    ],
+    "sensitivity": [
+      {
+        "km": 25,
+        "h": 0.25,
+        "dmag": 0.3,
+        "matched_total": 5524,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 369,
+          "correct": 367,
+          "precision": 0.9946,
+          "recall": 0.9244
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 25,
+        "h": 0.25,
+        "dmag": 0.5,
+        "matched_total": 5632,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 381,
+          "correct": 380,
+          "precision": 0.9974,
+          "recall": 0.9572
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 25,
+        "h": 0.25,
+        "dmag": 1.0,
+        "matched_total": 5660,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 382,
+          "correct": 381,
+          "precision": 0.9974,
+          "recall": 0.9597
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 25,
+        "h": 0.5,
+        "dmag": 0.3,
+        "matched_total": 5526,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 369,
+          "correct": 367,
+          "precision": 0.9946,
+          "recall": 0.9244
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 25,
+        "h": 0.5,
+        "dmag": 0.5,
+        "matched_total": 5636,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 381,
+          "correct": 380,
+          "precision": 0.9974,
+          "recall": 0.9572
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 25,
+        "h": 0.5,
+        "dmag": 1.0,
+        "matched_total": 5664,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 383,
+          "correct": 381,
+          "precision": 0.9948,
+          "recall": 0.9597
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 25,
+        "h": 1,
+        "dmag": 0.3,
+        "matched_total": 5529,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 369,
+          "correct": 367,
+          "precision": 0.9946,
+          "recall": 0.9244
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 25,
+        "h": 1,
+        "dmag": 0.5,
+        "matched_total": 5640,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 381,
+          "correct": 380,
+          "precision": 0.9974,
+          "recall": 0.9572
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 25,
+        "h": 1,
+        "dmag": 1.0,
+        "matched_total": 5671,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 383,
+          "correct": 381,
+          "precision": 0.9948,
+          "recall": 0.9597
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 25,
+        "h": 2,
+        "dmag": 0.3,
+        "matched_total": 5540,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 369,
+          "correct": 367,
+          "precision": 0.9946,
+          "recall": 0.9244
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 25,
+        "h": 2,
+        "dmag": 0.5,
+        "matched_total": 5650,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 381,
+          "correct": 380,
+          "precision": 0.9974,
+          "recall": 0.9572
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 25,
+        "h": 2,
+        "dmag": 1.0,
+        "matched_total": 5679,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 383,
+          "correct": 381,
+          "precision": 0.9948,
+          "recall": 0.9597
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 50,
+        "h": 0.25,
+        "dmag": 0.3,
+        "matched_total": 5732,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 381,
+          "correct": 380,
+          "precision": 0.9974,
+          "recall": 0.9572
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 50,
+        "h": 0.25,
+        "dmag": 0.5,
+        "matched_total": 5842,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 393,
+          "correct": 393,
+          "precision": 1.0,
+          "recall": 0.9899
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 50,
+        "h": 0.25,
+        "dmag": 1.0,
+        "matched_total": 5868,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 394,
+          "correct": 394,
+          "precision": 1.0,
+          "recall": 0.9924
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 50,
+        "h": 0.5,
+        "dmag": 0.3,
+        "matched_total": 5735,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 381,
+          "correct": 380,
+          "precision": 0.9974,
+          "recall": 0.9572
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 50,
+        "h": 0.5,
+        "dmag": 0.5,
+        "matched_total": 5845,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 393,
+          "correct": 393,
+          "precision": 1.0,
+          "recall": 0.9899
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 50,
+        "h": 0.5,
+        "dmag": 1.0,
+        "matched_total": 5871,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 394,
+          "correct": 394,
+          "precision": 1.0,
+          "recall": 0.9924
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 50,
+        "h": 1,
+        "dmag": 0.3,
+        "matched_total": 5739,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 381,
+          "correct": 380,
+          "precision": 0.9974,
+          "recall": 0.9572
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 50,
+        "h": 1,
+        "dmag": 0.5,
+        "matched_total": 5848,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 393,
+          "correct": 393,
+          "precision": 1.0,
+          "recall": 0.9899
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 50,
+        "h": 1,
+        "dmag": 1.0,
+        "matched_total": 5875,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 394,
+          "correct": 394,
+          "precision": 1.0,
+          "recall": 0.9924
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 50,
+        "h": 2,
+        "dmag": 0.3,
+        "matched_total": 5741,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 381,
+          "correct": 380,
+          "precision": 0.9974,
+          "recall": 0.9572
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 50,
+        "h": 2,
+        "dmag": 0.5,
+        "matched_total": 5851,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 393,
+          "correct": 393,
+          "precision": 1.0,
+          "recall": 0.9899
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 50,
+        "h": 2,
+        "dmag": 1.0,
+        "matched_total": 5876,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 394,
+          "correct": 394,
+          "precision": 1.0,
+          "recall": 0.9924
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 100,
+        "h": 0.25,
+        "dmag": 0.3,
+        "matched_total": 5775,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 384,
+          "correct": 383,
+          "precision": 0.9974,
+          "recall": 0.9647
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 100,
+        "h": 0.25,
+        "dmag": 0.5,
+        "matched_total": 5888,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 396,
+          "correct": 396,
+          "precision": 1.0,
+          "recall": 0.9975
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 100,
+        "h": 0.25,
+        "dmag": 1.0,
+        "matched_total": 5914,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 397,
+          "correct": 397,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 100,
+        "h": 0.5,
+        "dmag": 0.3,
+        "matched_total": 5776,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 384,
+          "correct": 383,
+          "precision": 0.9974,
+          "recall": 0.9647
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 100,
+        "h": 0.5,
+        "dmag": 0.5,
+        "matched_total": 5889,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 396,
+          "correct": 396,
+          "precision": 1.0,
+          "recall": 0.9975
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 100,
+        "h": 0.5,
+        "dmag": 1.0,
+        "matched_total": 5915,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 397,
+          "correct": 397,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 100,
+        "h": 1,
+        "dmag": 0.3,
+        "matched_total": 5778,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 384,
+          "correct": 383,
+          "precision": 0.9974,
+          "recall": 0.9647
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 100,
+        "h": 1,
+        "dmag": 0.5,
+        "matched_total": 5889,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 396,
+          "correct": 396,
+          "precision": 1.0,
+          "recall": 0.9975
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 100,
+        "h": 1,
+        "dmag": 1.0,
+        "matched_total": 5915,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 397,
+          "correct": 397,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 100,
+        "h": 2,
+        "dmag": 0.3,
+        "matched_total": 5780,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 384,
+          "correct": 383,
+          "precision": 0.9974,
+          "recall": 0.9647
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 100,
+        "h": 2,
+        "dmag": 0.5,
+        "matched_total": 5892,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 396,
+          "correct": 396,
+          "precision": 1.0,
+          "recall": 0.9975
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 100,
+        "h": 2,
+        "dmag": 1.0,
+        "matched_total": 5916,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 397,
+          "correct": 397,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 20,
+          "correct": 20,
+          "precision": 1.0,
+          "recall": 0.9524
+        }
+      },
+      {
+        "km": 200,
+        "h": 0.25,
+        "dmag": 0.3,
+        "matched_total": 5788,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 384,
+          "correct": 383,
+          "precision": 0.9974,
+          "recall": 0.9647
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 21,
+          "correct": 21,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      {
+        "km": 200,
+        "h": 0.25,
+        "dmag": 0.5,
+        "matched_total": 5902,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 396,
+          "correct": 396,
+          "precision": 1.0,
+          "recall": 0.9975
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 21,
+          "correct": 21,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      {
+        "km": 200,
+        "h": 0.25,
+        "dmag": 1.0,
+        "matched_total": 5928,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 397,
+          "correct": 397,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 21,
+          "correct": 21,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      {
+        "km": 200,
+        "h": 0.5,
+        "dmag": 0.3,
+        "matched_total": 5788,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 384,
+          "correct": 383,
+          "precision": 0.9974,
+          "recall": 0.9647
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 21,
+          "correct": 21,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      {
+        "km": 200,
+        "h": 0.5,
+        "dmag": 0.5,
+        "matched_total": 5902,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 396,
+          "correct": 396,
+          "precision": 1.0,
+          "recall": 0.9975
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 21,
+          "correct": 21,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      {
+        "km": 200,
+        "h": 0.5,
+        "dmag": 1.0,
+        "matched_total": 5928,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 397,
+          "correct": 397,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 21,
+          "correct": 21,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      {
+        "km": 200,
+        "h": 1,
+        "dmag": 0.3,
+        "matched_total": 5791,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 384,
+          "correct": 383,
+          "precision": 0.9974,
+          "recall": 0.9647
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 21,
+          "correct": 21,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      {
+        "km": 200,
+        "h": 1,
+        "dmag": 0.5,
+        "matched_total": 5902,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 396,
+          "correct": 396,
+          "precision": 1.0,
+          "recall": 0.9975
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 21,
+          "correct": 21,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      {
+        "km": 200,
+        "h": 1,
+        "dmag": 1.0,
+        "matched_total": 5928,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 397,
+          "correct": 397,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 21,
+          "correct": 21,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      {
+        "km": 200,
+        "h": 2,
+        "dmag": 0.3,
+        "matched_total": 5793,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 384,
+          "correct": 383,
+          "precision": 0.9974,
+          "recall": 0.9647
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 21,
+          "correct": 21,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      {
+        "km": 200,
+        "h": 2,
+        "dmag": 0.5,
+        "matched_total": 5905,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 396,
+          "correct": 396,
+          "precision": 1.0,
+          "recall": 0.9975
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 21,
+          "correct": 21,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      {
+        "km": 200,
+        "h": 2,
+        "dmag": 1.0,
+        "matched_total": 5929,
+        "sample": {
+          "evaluable": 397,
+          "predicted": 397,
+          "correct": 397,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "significant": {
+          "evaluable": 21,
+          "predicted": 21,
+          "correct": 21,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      }
+    ]
+  },
+  "E3": {
+    "orange_red_flood_drought_events": 23,
+    "with_polygon": 23,
+    "point_inside_polygon": 18,
+    "point_outside_polygon": 5,
+    "outside_distance_km": {
+      "n": 5,
+      "median": 250.1,
+      "p25": 14.7,
+      "p75": 1448.4,
+      "max": 2437.9
+    },
+    "multi_part_polygons": 9,
+    "farthest_affected_vertex_from_point_km": {
+      "n": 23,
+      "median": 384.2,
+      "p25": 102.3,
+      "p75": 653.9,
+      "max": 2851.0
+    },
+    "farthest_over_100km": 18,
+    "usgs_landslide_events": 10,
+    "linked_pairs": [
+      {
+        "gdacs": "gdacs:FL:1104124",
+        "usgs": "usgs:us7000tc90",
+        "distance_to_area_km": 0.55
+      },
+      {
+        "gdacs": "gdacs:FL:1104124",
+        "usgs": "usgs:us7000tbwb",
+        "distance_to_area_km": 5.75
+      }
+    ],
+    "linked_inside_polygon": 0,
+    "linked_outside_but_within_buffer": 2,
+    "possibly_related_pairs": [
+      {
+        "gdacs": "gdacs:FL:1104225",
+        "usgs": "usgs:us6000u1j7"
+      }
+    ]
+  },
+  "E5": {
+    "flood_drought_events": 712,
+    "magnitude_zero_or_missing": 675
+  },
+  "E4": {
+    "orange_red_events": 83,
+    "events_with_sendai_rows": 17,
+    "indicator_country_groups": 102,
+    "groups_from_several_places_or_waves": 56,
+    "old_rule_below_largest_single_report": 33,
+    "old_rule_shortfall_ratio": {
+      "n": 33,
+      "median": 27.6,
+      "p25": 6.9,
+      "p75": 108.9,
+      "max": 1422.5,
+      "values_are": "largest single report / old rule value"
+    },
+    "naive_sum_above_new_high": 32,
+    "naive_sum_excess_ratio": {
+      "n": 32,
+      "median": 1.4,
+      "p25": 1.1,
+      "p75": 2.0,
+      "max": 3.4,
+      "values_are": "naive sum / sum of latest per place"
+    },
+    "affected_rows_relabelled_missing": 9,
+    "totals": {
+      "Deaths": {
+        "naive_sum": 4501,
+        "old_rule": 3103,
+        "new_low": 3499,
+        "new_high": 3864
+      },
+      "Missing / out of contact": {
+        "naive_sum": 17455,
+        "old_rule": 5716,
+        "new_low": 6239,
+        "new_high": 6496
+      },
+      "Injured": {
+        "naive_sum": 718,
+        "old_rule": 500,
+        "new_low": 557,
+        "new_high": 574
+      },
+      "Evacuated": {
+        "naive_sum": 2300587,
+        "old_rule": 312955,
+        "new_low": 1697074,
+        "new_high": 2127997
+      },
+      "Displaced": {
+        "naive_sum": 1251289,
+        "old_rule": 1243183,
+        "new_low": 1251169,
+        "new_high": 1251289
+      },
+      "Houses / buildings damaged": {
+        "naive_sum": 1989014,
+        "old_rule": 722622,
+        "new_low": 781581,
+        "new_high": 1471099
+      },
+      "Affected": {
+        "naive_sum": 19158163,
+        "old_rule": 12022222,
+        "new_low": 15807156,
+        "new_high": 16901582
+      },
+      "Rescued": {
+        "naive_sum": 35853,
+        "old_rule": 10592,
+        "new_low": 14920,
+        "new_high": 18172
+      },
+      "Bridges destroyed": {
+        "naive_sum": 82,
+        "old_rule": 80,
+        "new_low": 80,
+        "new_high": 82
+      },
+      "Transport damaged": {
+        "naive_sum": 75,
+        "old_rule": 75,
+        "new_low": 75,
+        "new_high": 75
+      }
+    },
+    "old_rule_examples": [
+      {
+        "event": "FL 1103757",
+        "indicator": "Evacuated",
+        "country": "Brazil",
+        "reports": 23,
+        "old_rule": 6,
+        "new": "8,535\u201313,743",
+        "naive_sum": 15632
+      },
+      {
+        "event": "FL 1104121",
+        "indicator": "Rescued",
+        "country": "India",
+        "reports": 14,
+        "old_rule": 3,
+        "new": "4,000\u20136,974",
+        "naive_sum": 6974
+      },
+      {
+        "event": "FL 1103633",
+        "indicator": "Displaced",
+        "country": "Indonesia",
+        "reports": 3,
+        "old_rule": 14,
+        "new": "8,000\u20138,120",
+        "naive_sum": 8120
+      },
+      {
+        "event": "FL 1103646",
+        "indicator": "Affected",
+        "country": "Indonesia",
+        "reports": 4,
+        "old_rule": 8033,
+        "new": "3,200,000\u20133,210,959",
+        "naive_sum": 3210959
+      },
+      {
+        "event": "FL 1103646",
+        "indicator": "Missing / out of contact",
+        "country": "Indonesia",
+        "reports": 2,
+        "old_rule": 2,
+        "new": "463\u2013465",
+        "naive_sum": 465
+      },
+      {
+        "event": "FL 1103633",
+        "indicator": "Evacuated",
+        "country": "Indonesia",
+        "reports": 10,
+        "old_rule": 300,
+        "new": "44,350\u201348,516",
+        "naive_sum": 51367
+      },
+      {
+        "event": "FL 1103633",
+        "indicator": "Deaths",
+        "country": "Indonesia",
+        "reports": 12,
+        "old_rule": 1,
+        "new": "120\u2013331",
+        "naive_sum": 436
+      },
+      {
+        "event": "FL 1104081",
+        "indicator": "Evacuated",
+        "country": "China",
+        "reports": 17,
+        "old_rule": 1805,
+        "new": "215,600\u2013425,214",
+        "naive_sum": 456778
+      },
+      {
+        "event": "FL 1104051",
+        "indicator": "Evacuated",
+        "country": "China",
+        "reports": 2,
+        "old_rule": 8145,
+        "new": "801,000\u2013809,145",
+        "naive_sum": 809145
+      },
+      {
+        "event": "FL 1103757",
+        "indicator": "Houses / buildings damaged",
+        "country": "Brazil",
+        "reports": 15,
+        "old_rule": 30,
+        "new": "2,600\u20132,721",
+        "naive_sum": 2768
+      }
+    ],
+    "naive_sum_examples": [
+      {
+        "event": "FL 1103640",
+        "indicator": "Affected",
+        "country": "Sri Lanka",
+        "reports": 2,
+        "old_rule": 1840000,
+        "new": "1,840,000",
+        "naive_sum": 2996860
+      },
+      {
+        "event": "FL 1103621",
+        "indicator": "Houses / buildings damaged",
+        "country": "Thailand",
+        "reports": 7,
+        "old_rule": 633105,
+        "new": "633,105\u20131,299,735",
+        "naive_sum": 1768737
+      },
+      {
+        "event": "FL 1103694",
+        "indicator": "Affected",
+        "country": "Mozambique",
+        "reports": 2,
+        "old_rule": 645781,
+        "new": "645,781",
+        "naive_sum": 1286273
+      },
+      {
+        "event": "FL 1103621",
+        "indicator": "Affected",
+        "country": "Thailand",
+        "reports": 3,
+        "old_rule": 697231,
+        "new": "697,231\u2013702,231",
+        "naive_sum": 1158231
+      },
+      {
+        "event": "FL 1104121",
+        "indicator": "Evacuated",
+        "country": "India",
+        "reports": 10,
+        "old_rule": 3500,
+        "new": "237,000\u2013364,269",
+        "naive_sum": 457351
+      },
+      {
+        "event": "FL 1104081",
+        "indicator": "Evacuated",
+        "country": "China",
+        "reports": 17,
+        "old_rule": 1805,
+        "new": "215,600\u2013425,214",
+        "naive_sum": 456778
+      },
+      {
+        "event": "FL 1103633",
+        "indicator": "Affected",
+        "country": "Indonesia",
+        "reports": 34,
+        "old_rule": 8371,
+        "new": "25,508\u2013120,783",
+        "naive_sum": 120926
+      },
+      {
+        "event": "FL 1103694",
+        "indicator": "Houses / buildings damaged",
+        "country": "Mozambique",
+        "reports": 3,
+        "old_rule": 78500,
+        "new": "78,500",
+        "naive_sum": 108854
+      },
+      {
+        "event": "FL 1103694",
+        "indicator": "Evacuated",
+        "country": "Mozambique",
+        "reports": 2,
+        "old_rule": 60800,
+        "new": "60,800",
+        "naive_sum": 102776
+      },
+      {
+        "event": "FL 1103933",
+        "indicator": "Affected",
+        "country": "China",
+        "reports": 6,
+        "old_rule": 55000,
+        "new": "55,000\u201364,711",
+        "naive_sum": 64730
+      }
+    ]
+  },
+  "E2": {
+    "taken_at": "2026-11-05T13:13:54.722598+00:00",
+    "events_considered": 6821,
+    "gaianet_active": 185,
+    "gaianet_active_significant": 0,
+    "naive_recent_active": 196,
+    "naive_recent_but_ended": 129,
+    "naive_recent_but_ended_by_reason": {
+      "gdacs_not_current": 54,
+      "gdacs_instantaneous": 47,
+      "gdacs_stale_flag": 1,
+      "usgs_instantaneous": 27
+    },
+    "naive_recent_but_ended_by_hazard": {
+      "wildfire": 10,
+      "earthquake": 116,
+      "volcano": 1,
+      "tropical_cyclone": 1,
+      "landslide": 1
+    },
+    "ongoing_missed_by_naive_recent": 118,
+    "ongoing_missed_ages_days": [
+      7.5,
+      7.6,
+      7.6,
+      7.6,
+      7.6,
+      7.6,
+      7.6,
+      7.6,
+      7.6,
+      7.6,
+      7.6,
+      7.6,
+      7.6,
+      7.6,
+      7.6,
+      7.6,
+      8.6,
+      8.6,
+      8.6,
+      8.6,
+      8.6,
+      8.6,
+      8.6,
+      8.6,
+      8.6,
+      8.6,
+      8.6,
+      8.6,
+      8.6,
+      8.6,
+      8.6,
+      8.6,
+      9.6,
+      9.6,
+      9.6,
+      9.6,
+      9.6,
+      9.6,
+      9.6,
+      9.6,
+      9.6,
+      9.6,
+      9.6,
+      9.6,
+      9.6,
+      9.6,
+      9.6,
+      10.5,
+      10.5,
+      10.6,
+      10.6,
+      10.6,
+      10.6,
+      10.6,
+      10.6,
+      10.6,
+      10.6,
+      10.6,
+      11.3,
+      11.6,
+      11.6,
+      11.6,
+      11.6,
+      11.6,
+      12.5,
+      12.6,
+      12.6,
+      12.6,
+      12.6,
+      12.6,
+      12.6,
+      12.6,
+      12.6,
+      12.6,
+      13.6,
+      13.6,
+      13.6,
+      13.6,
+      13.6,
+      14.6,
+      14.6,
+      14.6,
+      14.6,
+      14.6,
+      14.6,
+      14.6,
+      14.6,
+      14.6,
+      14.6,
+      14.6,
+      15.6,
+      15.6,
+      15.6,
+      15.6,
+      15.6,
+      16.5,
+      16.6,
+      16.6,
+      16.6,
+      16.6,
+      16.6,
+      16.6,
+      16.6,
+      16.6,
+      16.6,
+      17.6,
+      17.6,
+      17.6,
+      17.6,
+      18.6,
+      18.6,
+      18.6,
+      18.6,
+      21.5,
+      29.5,
+      51.5,
+      168.6,
+      170.5
+    ],
+    "ongoing_missed_by_hazard": {
+      "flood": 9,
+      "drought": 1,
+      "tropical_cyclone": 1,
+      "wildfire": 107
+    },
+    "naive_flag_active": 233,
+    "naive_flag_but_not_active": 48,
+    "naive_flag_but_not_active_by_reason": {
+      "gdacs_instantaneous": 47,
+      "gdacs_stale_flag": 1
+    },
+    "rules": {
+      "naive_recent": "started within the last 7 days",
+      "naive_flag": "GDACS iscurrent flag alone",
+      "gaianet": "GDACS iscurrent AND has a duration AND latest episode within the hazard's staleness window; USGS never active"
+    }
+  },
+  "requests": {
+    "live": 485,
+    "cached": 329,
+    "failed": 0,
+    "failed_sample": []
+  }
+}

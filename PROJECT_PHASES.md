@@ -28,7 +28,11 @@ The checklist view of the project. Details per data layer live in [`PROJECT_STAT
 - [x] Same-name place disambiguation; Enter never replaces the typed name; suggestions only on explicit selection
 - [x] Ask Gaia lists ambiguous places instead of guessing
 - [x] Source/date badges: LIVE, ARCHIVE, FORECAST, EST, FORMULA
-- [x] Offline test suite (101 tests)
+- [x] Offline test suite (150 tests)
+- [x] Fixes from the full Ask Gaia evaluation: place names must come from the user's own words; accent-only namesakes block assumptions; AQI category and WHO guideline values supplied by the tools; Gaia no longer queries OpenAQ through the extension's alert helper
+- [x] Fixes from the Ask Gaia evaluation: AQI from the dashboard's source chain (was OpenAQ-only); major cities with tiny namesakes answered directly with the assumption stated
+- [x] Fixes from the 12-month hazard evaluation: per-place impact ranges (old rule could show "1 death" for a multi-region flood); earthquakes matched closest-in-time first
+- [x] No synthetic fallbacks left: monthly climate trends and CO₂ show "unavailable" instead of a made-up value; archive trend request cached (6 h)
 
 ### Phase 5 — Disasters & Hazards ✅
 - [x] Active now (source status + end dates) and Previous (7 / 30 days / custom)
@@ -54,7 +58,8 @@ The checklist view of the project. Details per data layer live in [`PROJECT_STAT
 ### Platform
 - [ ] AR/VR model of Earth for Android devices (faculty request; AR preferred)
 - [ ] Mobile layout and accessibility pass
-- [ ] CI to run the test suite automatically
+- [x] CI to run the test suite automatically (GitHub Actions)
+- [x] Evaluation scripts: 12-month hazard evaluation, Ask Gaia grounding (`backend/eval/`)
 - [ ] Broader Global Health Index coverage
 
 ### Deliberately not planned

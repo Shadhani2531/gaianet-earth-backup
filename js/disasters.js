@@ -606,6 +606,23 @@ class DisastersManager {
         if (noteEl) noteEl.textContent = `${geo.caveat}${geo.polygon_date ? ' Drawn as of ' + this._fmtDate(geo.polygon_date) + '.' : ''}`;
     }
 
+
+    // One GDACS impact row. A multi-place figure is a range (largest single
+    // report – sum of the latest per place, see backend summarize_sendai);
+    // the tooltip lists the places behind it.
+    _impactRow(r) {
+        const esc = (x) => String(x ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        const fmt = v => Number(v).toLocaleString();
+        const value = r.value_high ? `${fmt(r.value)}–${fmt(r.value_high)}` : fmt(r.value);
+        let tip = r.note || '';
+        if (r.places && r.places.length > 1) {
+            tip += (tip ? '\n' : '') + 'Largest reports: ' + r.places
+                .map(p => `${p.place}: ${fmt(p.value)}${p.onset ? ' (from ' + p.onset + ')' : ''}`).join('; ');
+        }
+        const mark = tip ? ` <span class="dis-note" title="${esc(tip)}">*</span>` : '';
+        return `<tr><td>${esc(r.label)}${mark}</td><td>${esc(r.country)}</td><td>${value}</td></tr>`;
+    }
+
     _renderDetail(g, primaryDetail, usgsRel, usgsDetail) {
         const body = document.getElementById('dis-detail-body');
         if (!body) return;
@@ -638,8 +655,12 @@ class DisastersManager {
         if (gd?.status === 'ok' && gd.impacts?.length) {
             impacts += `<p class="dis-src-label">GDACS${gd.impacts_as_of ? ', as of ' + esc(gd.impacts_as_of) : ''}</p>
                 <table class="dis-impacts"><tbody>
-                ${gd.impacts.map(r => `<tr><td>${esc(r.label)}${r.note ? ` <span class="dis-note" title="${esc(r.note)}">*</span>` : ''}</td><td>${esc(r.country)}</td><td>${Number(r.value).toLocaleString()}</td></tr>`).join('')}
+                ${gd.impacts.map(r => this._impactRow(r)).join('')}
                 </tbody></table>`;
+            if (gd.impacts.some(r => r.value_high)) {
+                impacts += '<p class="dis-muted">A range means the figure was reported separately for several places or flood waves '
+                    + '(hover * for the places). It runs from the largest single report to the sum of the latest report from each.</p>';
+            }
         } else if (gd && gd.status !== 'ok') {
             impacts += '<p class="dis-muted">GDACS impact figures unavailable right now.</p>';
         }

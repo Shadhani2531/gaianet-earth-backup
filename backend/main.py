@@ -49,13 +49,27 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Server-Timing"],
 )
+
+
+# Time spent inside this server per request, as a standard Server-Timing
+# header (also visible in the browser's DevTools Network tab). Lets the
+# latency benchmark separate the server's own processing time from the
+# client/connection overhead around it.
+@app.middleware("http")
+async def add_server_timing(request, call_next):
+    import time as _t
+    start = _t.perf_counter()
+    response = await call_next(request)
+    response.headers["Server-Timing"] = f"app;dur={(_t.perf_counter() - start) * 1000:.1f}"
+    return response
 
 @app.get("/api/status")
 def read_root():
     return {
         "status": "online", 
-        "version": "2.1.0",
+        "version": "2.2.0",
         "message": "GaiaNet Earth Environmental Intelligence API is running with real-world data feeds."
     }
 
@@ -292,7 +306,11 @@ def get_environment(lat: float = Query(...), lon: float = Query(...)):
     """Aggregate environmental intelligence for a specific point using real-world WAQI data."""
     climate_info = climate.get_location_climate(lat, lon)
     live_env = mock_data.generate_environment_data(lat, lon)
-    
+    # Latest month's recorded rainfall total, or None when the archive is
+    # unavailable (historical_trends is then [] — never a synthetic month).
+    trends = climate_info.get("historical_trends") or []
+    latest_rainfall_mm = trends[-1].get("total_rainfall_mm") if trends else None
+
     return {
         "location": {"lat": lat, "lon": lon},
         # Model-based current temperature at the exact coordinates
@@ -308,8 +326,10 @@ def get_environment(lat: float = Query(...), lon: float = Query(...)):
         "aqi_observed_at": live_env.get("aqi_observed_at"),
         "aqi_attempts": live_env.get("aqi_attempts"),
         "aqi_reason": live_env.get("aqi_reason"),
-        "co2_ppm": live_env["co2_ppm"],
-        "rainfall_mm": climate_info["historical_trends"][-1]["total_rainfall_mm"],
+        "co2_ppm": live_env["co2_ppm"],                     # NOAA GML, or None
+        "co2_data_source": live_env.get("co2_data_source"),
+        "rainfall_mm": latest_rainfall_mm,
+        "rainfall_data_source": climate_info.get("data_source"),
         "anomaly_c": climate_info["current_anomaly"],
         "status": "success"
     }
@@ -683,4 +703,6 @@ app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="static")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # use_colors=False: the classic Windows console prints colour codes as
+    # literal "←[32m" text instead of colours.
+    uvicorn.run(app, host="0.0.0.0", port=8000, use_colors=False)

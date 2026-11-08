@@ -5,9 +5,13 @@ One FastAPI server serves both the API and the frontend, so there is only one th
 ## Quick start (Windows)
 
 Double-click **`start_project.bat`** in the project root. It:
-1. creates `backend/venv` (first run only) and installs `backend/requirements.txt`;
-2. starts the server in a new window;
-3. opens **http://localhost:8000** in your browser.
+1. stops any old server still running on port 8000 (an old process keeps serving old code);
+2. creates `backend/venv` on the first run, and runs `pip install` only when `backend/requirements.txt` has changed;
+3. creates `backend/.env` from `.env.example` if it is missing;
+4. starts the server in a minimised **GaiaNet Earth Server** window;
+5. opens **http://localhost:8000** as soon as the server answers, then closes itself.
+
+To stop the server, close the **GaiaNet Earth Server** window.
 
 ## Manual start (any OS)
 
@@ -43,15 +47,22 @@ Open-Meteo, NOAA, NASA, GDACS and USGS need no key.
 
 ```powershell
 cd backend
-python -m unittest tests.test_temperature_anomaly tests.test_historical tests.test_disasters_rasuwa
+python -m unittest discover -s tests -t .
 ```
-Expected: `Ran 101 tests ... OK`. No network access is needed.
+Expected: `Ran 150 tests ... OK`. No network access is needed.
+
+## Latency benchmark
+
+```powershell
+# close the "GaiaNet Earth Server" window first: the benchmark starts its own server on port 8000
+python benchmark_latency.py       # from the project root, venv active
+```
+Reports the first request (empty in-memory caches) and requests 2–10 separately for `/climate`, `/prediction` and `/environment`. Upstream APIs are called live, so results depend on your network.
 
 ## After updating any files
 
-1. Stop every Python process: `taskkill /F /IM python.exe`
-2. Start again with `start_project.bat`
-3. Hard-refresh the browser: **Ctrl + Shift + R**
+1. Double-click `start_project.bat` again — it replaces the old server automatically
+2. Hard-refresh the browser: **Ctrl + Shift + R**
 
 An old server process left running keeps serving old code — if a traceback's line numbers don't match the file, that is the cause.
 
@@ -77,6 +88,6 @@ An old server process left running keeps serving old code — if a traceback's l
 |---|---|
 | Changes not visible | Restart the server (see above) and hard-refresh |
 | "Could not reach the backend" | The server window is closed or crashed — check it for errors |
-| Port 8000 in use | `taskkill /F /IM python.exe`, then start again |
+| Port 8000 in use | Run `start_project.bat` again — it stops whatever is listening on port 8000 first |
 | Values show "n/a" / unavailable | Usually a free-tier rate limit; the reason is shown on hover or in the server log |
 | Historical view slow the first time | It downloads NOAA's full catalogues once, then serves the saved copy |

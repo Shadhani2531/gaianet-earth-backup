@@ -185,7 +185,7 @@ class ScenarioResult:
 
 def apply_deforestation_scenario(
     current_temp_c: Optional[float],
-    current_co2_ppm: float,
+    current_co2_ppm: Optional[float],   # accepted for context; not used in the cited calculations
     forest_loss_pct: float,
     is_tropical: bool = True,
 ) -> list[MetricChange]:
@@ -398,7 +398,7 @@ def run_scenario(
     if forest_loss_pct > 0:
         all_changes.extend(apply_deforestation_scenario(
             current_temp_c=current_data.get("temperature_c"),
-            current_co2_ppm=current_data.get("co2_ppm", 420.0),
+            current_co2_ppm=current_data.get("co2_ppm"),   # None when NOAA is unavailable
             forest_loss_pct=forest_loss_pct,
             is_tropical=is_tropical,
         ))

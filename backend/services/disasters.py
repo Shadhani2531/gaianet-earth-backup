@@ -10,9 +10,10 @@ by checking that event's REAL API responses, which exposed these traps:
      south of Kathmandu). -> marked "approximate"; replaced by a linked
      USGS origin when one exists.
   2. GDACS sendai "affected" entries are often "Out of contact" (missing),
-     and several entries are cumulative counts at different dates.
-     -> relabelled from the description text; only the latest per
-     (label, country) is shown; never summed.
+     and entries are per-place reports re-issued as figures change.
+     -> relabelled from the description text; latest report per place and
+     flood wave; across places shown as a range, never one summed figure
+     (see summarize_sendai).
   3. GDACS "severity: Magnitude 0" is meaningless for floods/droughts.
      -> dropped.
   4. EONET's copy of a GDACS event has swapped lat/lon and a different
@@ -462,7 +463,7 @@ def link_events(gdacs: List[Dict], usgs: List[Dict],
     related_by_g: Dict[str, List[Dict]] = {g["id"]: [] for g in gdacs}
     possible: Dict[str, List[Dict]] = {}
 
-    # Pass 1 (fix A): same-quake de-duplication, closest match first.
+    # Pass 1 (fix A): same-quake de-duplication, one-to-one, closest in time first.
     eq_pairs = []
     for g in gdacs:
         if g["hazard"] != "earthquake":
@@ -481,7 +482,12 @@ def link_events(gdacs: List[Dict], usgs: List[Dict],
                 continue
             eq_pairs.append((dist, dh, g, u))
     used_g_eq = set()
-    for dist, dh, g, u in sorted(eq_pairs, key=lambda x: (x[0], x[1])):
+    # Closest in TIME first, then distance: agencies' origin times agree to
+    # seconds, while early locations of the same quake can differ by tens of
+    # km. Distance-first let an aftershock's record take the main shock's USGS
+    # match: it lay 2.4 km from that epicentre, the main shock's own record
+    # 5.0 km (Qinghai M5.7/M5.8 18 min apart, 28 Jul 2026, 12-month evaluation).
+    for dist, dh, g, u in sorted(eq_pairs, key=lambda x: (x[1], x[0])):
         if g["id"] in used_g_eq or u["id"] in used_usgs:
             continue
         related_by_g[g["id"]].append({"event": u, "relation": "same_event", "distance_km": round(dist, 1)})
@@ -673,12 +679,57 @@ def _sendai_label(entry: Dict[str, Any]) -> str:
     return (entry.get("sendainame") or "Other").strip().capitalize()
 
 
+_SENDAI_ROW_PLACE = re.compile(r"^\s*[\d,.]+\s*\[[^\]]*\]\s*.*?\bin\s+(.+)$", re.I)
+_SENDAI_LEVEL_PLACE = re.compile(r"^\s*(country|island|region|province|state|regency|district|county|city|"
+                                 r"municipality|department|prefecture)\s*,\s*(.+)$", re.I)
+
+
+def _sendai_place(entry: Dict[str, Any]) -> str:
+    """The place a row reports on, from its description ("939 [people]
+    Fatalities in Bagmati Province, Nepal" or "Regency, Sibolga"); the
+    'region' field is too coarse and inconsistent to group by."""
+    desc = (entry.get("description") or "").strip()
+    m = _SENDAI_LEVEL_PLACE.match(desc)
+    if m:
+        place = m.group(2)
+    else:
+        m = _SENDAI_ROW_PLACE.match(desc)
+        place = m.group(1) if m else (entry.get("region") or "")
+    place = re.sub(r"\s*,\s*", ", ", re.sub(r"\s+", " ", place)).strip(" ,")
+    country = (entry.get("country") or "").strip()
+    if country and place.lower().endswith(", " + country.lower()):
+        place = place[: -(len(country) + 2)]
+    return place or country or "unspecified"
+
+
 def summarize_sendai(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Trap 2: label from the description; keep only the latest value per
-    (label, country) by the period it covers (expires_date, then
-    dateinsert only if that is missing); entries covering the same period
-    are a genuine tie — keep the highest and say so."""
-    best: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    """
+    Trap 2. GDACS impact rows are local media-monitoring reports: one place
+    (district, province, sometimes the whole country) per row, re-issued as
+    figures are updated, and sometimes for a new flood wave weeks later.
+
+      1. Label each row from its description ("affected" rows that report
+         people out of contact become "Missing / out of contact").
+      2. For each (label, country, place, onset day) keep the latest report,
+         by the period it covers (expires date, day resolution); reports
+         covering the same day are a genuine tie — keep the highest and say so.
+         Same-place re-reports are updates, so they are never added up.
+      3. Across places and episodes nothing is summed into one exact-looking
+         number. Shown as a range:
+            value      = largest single report (at least this many),
+            value_high = sum of the latest report of every place/episode
+                         (can double count overlapping areas; misses places
+                         with no report).
+         A whole-country report is never added on top of its sub-national
+         ones: value_high = max(national, sum of sub-national).
+
+    Previous rule (until Nov 2026): the latest row per (label, country). It
+    was right for Rasuwa, where every row came from one province, but a
+    12-month evaluation showed it picked one small local report for multi-place
+    events — e.g. "1 death" for an Indonesian flood whose rows report 120 in
+    Agam Regency, 60 in Sibolga, 51 in Central Tapanuli and more.
+    """
+    latest: Dict[Tuple[str, str, str, str], Dict[str, Any]] = {}
     tie_flags = set()
     for e in entries or []:
         try:
@@ -687,34 +738,56 @@ def summarize_sendai(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             continue
         label = _sendai_label(e)
         country = e.get("country") or "Unknown"
-        k = (label, country)
-        # The period a figure covers is expires_date. dateinsert is only a
-        # fallback: entries of one batch differ by milliseconds there, so
-        # using it as a tie-break would make "latest" mean "inserted 10 ms
-        # later" (Rasuwa: 3,925 would beat 4,247 for the same 31 Aug period).
-        period = e.get("expires_date") or e.get("dateinsert") or ""
-        cur = best.get(k)
+        place = _sendai_place(e)
+        k = (label, country, place.lower(), (e.get("onset_date") or "")[:10])
+        # The day a figure covers up to. dateinsert is only a fallback: rows
+        # of one batch differ by milliseconds there and by an hour in
+        # expires_date, so neither may decide which report is "later".
+        period = (e.get("expires_date") or e.get("dateinsert") or "")[:10]
+        cur = latest.get(k)
         if cur is None or period > cur["_period"]:
-            best[k] = {"_period": period, "value": value, "entry": e}
+            latest[k] = {"_period": period, "value": value, "entry": e, "place": place}
             tie_flags.discard(k)
         elif period == cur["_period"] and value != cur["value"]:
             tie_flags.add(k)
             if value > cur["value"]:
-                best[k] = {"_period": period, "value": value, "entry": e}
-    # Display order (matching order of _SENDAI_LABELS is about precedence, not display).
+                latest[k] = {"_period": period, "value": value, "entry": e, "place": place}
+
+    grouped: Dict[Tuple[str, str], List[Tuple[Tuple, Dict[str, Any]]]] = {}
+    for k, v in latest.items():
+        grouped.setdefault((k[0], k[1]), []).append((k, v))
+
     order = ["Deaths", "Missing / out of contact", "Injured", "Evacuated", "Displaced",
              "Rescued", "Bridges destroyed", "Houses / buildings damaged"]
     out = []
-    for (label, country), v in best.items():
-        e = v["entry"]
+    for (label, country), parts in grouped.items():
+        values = [v["value"] for _, v in parts]
+        national = [v["value"] for _, v in parts if v["place"].lower() == country.lower()]
+        local = [v["value"] for _, v in parts if v["place"].lower() != country.lower()]
+        low = max(values)
+        high = max(max(national, default=0), sum(local)) if len(parts) > 1 else low
+        high = max(high, low)
+        entries = [v["entry"] for _, v in parts]
+        notes = []
+        if any(k in tie_flags for k, _ in parts):
+            notes.append("Several figures reported for the same place and period; highest kept.")
+        if high > low:
+            notes.append(f"Reported separately for {len(parts)} places or flood waves. Lower figure: largest "
+                         f"single report. Higher figure: sum of the latest report from each, which can double "
+                         f"count overlapping areas and misses places with no report.")
+        top = sorted(parts, key=lambda kv: -kv[1]["value"])[:5]
         out.append({
             "label": label,
             "country": country,
-            "region": e.get("region"),
-            "value": v["value"],
-            "covers_until": (e.get("expires_date") or "")[:10] or None,
-            "as_of": (e.get("dateinsert") or "")[:10] or None,
-            "note": "Several figures reported for the same period; highest shown." if (label, country) in tie_flags else None,
+            "region": entries[0].get("region") if len(parts) == 1 else None,
+            "value": low,
+            "value_high": high if high > low else None,
+            "reports": len(parts),
+            "places": [{"place": v["place"], "value": v["value"], "onset": k[3] or None,
+                        "covers_until": v["_period"] or None} for k, v in top],
+            "covers_until": max(((e.get("expires_date") or "")[:10] for e in entries), default="") or None,
+            "as_of": max(((e.get("dateinsert") or "")[:10] for e in entries), default="") or None,
+            "note": " ".join(notes) or None,
         })
     out.sort(key=lambda r: (order.index(r["label"]) if r["label"] in order else 99, r["country"]))
     return out

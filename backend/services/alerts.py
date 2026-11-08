@@ -72,7 +72,11 @@ def _pm25_to_aqi(pm25: float) -> Optional[int]:
     return None
 
 
-def get_alert_summary(lat: float, lon: float, radius_km: float = 50.0) -> Dict[str, Any]:
+def get_alert_summary(lat: float, lon: float, radius_km: float = 50.0,
+                      include_air_quality: bool = True) -> Dict[str, Any]:
+    """Nearby fires (NASA FIRMS) and, unless include_air_quality is False, the
+    worst OpenAQ station within 25 km. Ask Gaia passes False: it takes air
+    quality from the dashboard's own chain and only needs the fire count."""
     now = datetime.now(timezone.utc)
     # OpenAQ's radius filter caps at 25km server-side (see
     # openaq_client._OPENAQ_MAX_RADIUS_M) — smaller than the up-to-500km
@@ -126,6 +130,9 @@ def get_alert_summary(lat: float, lon: float, radius_km: float = 50.0) -> Dict[s
     # ever within range). This is also now the ONLY consumer of OpenAQ
     # station data in the whole app — the global marker/cluster layer
     # this reasoning originally applied alongside was removed entirely.
+    if not include_air_quality:
+        result["data_source"]["air_quality"] = "not_requested"
+        return result
     try:
         stations = openaq_client.get_stations_near(lat, lon, radius_km)
         best_pm25 = None

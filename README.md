@@ -35,9 +35,9 @@ It is an academic/portfolio project, not an official monitoring or warning syste
 
 ```
 cd backend
-python -m unittest tests.test_temperature_anomaly tests.test_historical tests.test_disasters_rasuwa
+python -m unittest discover -s tests -t .
 ```
-101 tests, no network needed. They include a regression suite built from the real 26 Aug 2026 Rasuwa / Bhote Koshi (Nepal) disaster data.
+150 tests, no network needed; they also run automatically on GitHub Actions on every push. They include regression suites built from real data: the 26 Aug 2026 Rasuwa / Bhote Koshi (Nepal) disaster and cases found by the 12-month hazard evaluation.
 
 ## Documentation
 
@@ -46,5 +46,6 @@ python -m unittest tests.test_temperature_anomaly tests.test_historical tests.te
 - [`PROJECT_STATUS.md`](PROJECT_STATUS.md) — every data layer: source, status, caveats
 - [`PROJECT_PHASES.md`](PROJECT_PHASES.md) — feature checklist and roadmap
 - [`EXTENSION_INTEGRATION.md`](EXTENSION_INTEGRATION.md) — companion Chrome extension
+- [`backend/eval/README.md`](backend/eval/README.md) — evaluation scripts (12-month hazard evaluation, Ask Gaia grounding)
 
 > Disaster information is shown for awareness only. It is **not an official warning system** — always follow national authorities.

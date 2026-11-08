@@ -1,6 +1,5 @@
 import json
 import os
-import random
 import logging
 import math
 import requests

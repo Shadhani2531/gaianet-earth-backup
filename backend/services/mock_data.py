@@ -1,6 +1,7 @@
 import os
 import requests
 from datetime import datetime, timedelta
+from typing import Optional
 
 # WAQI token now read from environment (.env), never hardcoded in source.
 # Falls back to a demo token only if nothing is configured, so local dev
@@ -18,13 +19,14 @@ _NOAA_CO2_URL = "https://gml.noaa.gov/webdata/ccgg/trends/co2/co2_mm_gl.csv"
 _co2_cache = {"value": None, "fetched_at": None}
 
 
-def get_real_global_co2_ppm() -> float:
+def get_real_global_co2_ppm() -> Optional[float]:
     """
     Fetch the most recent real globally-averaged CO2 reading (ppm) from
     NOAA GML. Cached for 24 hours since this updates monthly, not per
-    request. Falls back to the last known real value (or a conservative
-    recent-real-world estimate) if NOAA is unreachable — NEVER falls back
-    to a random number.
+    request. If NOAA is unreachable, returns the last real value fetched by
+    this server process; if there is none, returns None. It never returns a
+    hardcoded or random figure (an earlier version returned a fixed 424.0,
+    which the UI then badged LIVE).
     """
     now = datetime.utcnow()
     if (_co2_cache["value"] is not None and _co2_cache["fetched_at"]
@@ -57,11 +59,17 @@ def get_real_global_co2_ppm() -> float:
     except Exception as e:
         print(f"NOAA CO2 fetch failed (using last known/fallback value): {e}")
 
-    # Fallback only if NOAA is unreachable AND we have no prior cached value:
-    # a labeled, conservative recent real-world figure, not a random guess.
+    # NOAA unreachable: the last real reading this process fetched, else None.
     if _co2_cache["value"] is not None:
         return _co2_cache["value"]
-    return 424.0  # approx. real global mean as of early 2025; update periodically
+    return None
+
+
+def _co2_fields() -> dict:
+    """co2_ppm plus its provenance, for the environment payloads."""
+    value = get_real_global_co2_ppm()
+    return {"co2_ppm": value,
+            "co2_data_source": "live_noaa_gml" if value is not None else "unavailable"}
 
 WAQI_MAX_STATION_DISTANCE_KM = 50.0
 WAQI_MAX_AGE_HOURS = 24.0
@@ -157,7 +165,7 @@ def _waqi_reading(lat: float, lon: float):
         "temperature_c": temp,
         "air_quality_index": aqi,
         "pm25": pm25,
-        "co2_ppm": get_real_global_co2_ppm(),  # real NOAA GML data, not random
+        **_co2_fields(),  # real NOAA GML data, or None + "unavailable"
         "location": {"lat": lat, "lon": lon},
         "data_source": data_source,
         "aqi_station": station,
@@ -276,7 +284,7 @@ def generate_environment_data(lat: float, lon: float):
         "temperature_c": temp,
         "air_quality_index": aqi,
         "pm25": pm25,
-        "co2_ppm": get_real_global_co2_ppm(),  # real NOAA GML data, not random
+        **_co2_fields(),  # real NOAA GML data, or None + "unavailable"
         "location": {"lat": lat, "lon": lon},
         "data_source": data_source,
         "aqi_source": aqi_source,          # human label of the source used

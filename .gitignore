@@ -18,6 +18,8 @@ backend/data/historical_cache/*
 backend/data/anomaly_baseline_cache/*
 !backend/data/anomaly_baseline_cache/.gitignore
 backend/data/cache/
+# Evaluation downloads (re-created by the eval scripts; results/ IS committed)
+backend/eval/data/
 *.tmp
 
 # IDEs

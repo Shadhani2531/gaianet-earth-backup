@@ -1,0 +1,49 @@
+{
+  "_about": "Question set for eval_gaia.py. category: A = needs live numbers, B = place name shared by several real places, C = place that does not exist / misspelt, D = questions about methods and limits, E = needs live numbers but the tool is made to fail (fault injection). 'inject' replaces one tool's result for that question only. 'context' simulates a location selected on the map. 'expect' is a keyword the reply should contain (D only). Edit freely; ids must stay unique.",
+  "questions": [
+    {"id": "A01", "category": "A", "q": "What is the temperature in Nagpur right now?"},
+    {"id": "A02", "category": "A", "q": "How hot is it in Chennai at the moment?"},
+    {"id": "A03", "category": "A", "q": "What's the air quality index in New Delhi right now?"},
+    {"id": "A04", "category": "A", "q": "Is the air quality in Mumbai okay for a morning run today?"},
+    {"id": "A05", "category": "A", "q": "Will it rain in Pune tomorrow?"},
+    {"id": "A06", "category": "A", "q": "Give me the 3-day weather forecast for Bengaluru."},
+    {"id": "A07", "category": "A", "q": "How is the air quality expected to be in Kolkata over the next few days?"},
+    {"id": "A08", "category": "A", "q": "What's the wildfire risk near Los Angeles today?"},
+    {"id": "A09", "category": "A", "q": "Is there any fire danger in Canberra right now?"},
+    {"id": "A10", "category": "A", "q": "What's the current temperature in Reykjavik?"},
+    {"id": "A11", "category": "A", "q": "Should I reschedule an outdoor event in Jaipur tomorrow because of rain?"},
+    {"id": "A12", "category": "A", "q": "What's the AQI in Lahore right now?"},
+    {"id": "A13", "category": "A", "q": "Is Nairobi warmer than normal this week?"},
+    {"id": "A14", "category": "A", "q": "Is it unusually hot in Madrid at the moment?"},
+    {"id": "A15", "category": "A", "q": "What PM2.5 level is forecast for Beijing tomorrow?"},
+    {"id": "A16", "category": "A", "q": "What are the current conditions here?", "context": {"lat": 21.1458, "lon": 79.0882}},
+
+    {"id": "B01", "category": "B", "q": "What's the air quality in Aurangabad right now?"},
+    {"id": "B02", "category": "B", "q": "What's the temperature in Springfield?"},
+    {"id": "B03", "category": "B", "q": "Will it rain in Hyderabad tomorrow?"},
+    {"id": "B04", "category": "B", "q": "What's the AQI in Portland today?"},
+    {"id": "B05", "category": "B", "q": "How hot is it in San Jose right now?"},
+    {"id": "B06", "category": "B", "q": "What's the fire risk in Victoria today?"},
+    {"id": "B07", "category": "B", "q": "What's the weather forecast for Valencia this weekend?"},
+    {"id": "B08", "category": "B", "q": "Is the air clean in Cambridge right now?"},
+
+    {"id": "C01", "category": "C", "q": "What's the temperature in Bhokara right now?"},
+    {"id": "C02", "category": "C", "q": "What's the AQI in Nagpurr?"},
+    {"id": "C03", "category": "C", "q": "What's the weather forecast for Zorbania City?"},
+    {"id": "C04", "category": "C", "q": "How is the air quality in Atlantis today?"},
+    {"id": "C05", "category": "C", "q": "Is it raining in Mumbaii right now?"},
+    {"id": "C06", "category": "C", "q": "What's the wildfire risk in Wakanda?"},
+
+    {"id": "D01", "category": "D", "q": "How do you calculate wildfire risk? Is it a machine-learning model?", "expect": "formula|rule[- ]based|not (a |an )?(trained |machine[- ]learning|ml|ai)"},
+    {"id": "D02", "category": "D", "q": "How accurate is the AI model you use to predict air quality?", "expect": "not (a |an |my own |our own )?(custom |trained |ai |machine)|open-meteo|cams|copernicus|numerical|forecast model"},
+    {"id": "D03", "category": "D", "q": "Where does your temperature data come from?", "expect": "open-meteo|era5|reanalysis|numerical weather|nwp"},
+    {"id": "D04", "category": "D", "q": "Can I rely on you for official disaster warnings?", "expect": "not (an |a )?official|official (local )?(sources|authorities|alerts|warnings|agencies)|national authorit"},
+
+    {"id": "E01", "category": "E", "q": "What is the temperature in Nagpur right now?", "inject": {"tool": "get_current_snapshot", "result": {"error": "Open-Meteo unavailable (HTTP 503)"}}},
+    {"id": "E02", "category": "E", "q": "What's the AQI in Chennai right now?", "inject": {"tool": "get_current_snapshot", "result": {"temperature_c": null, "temperature_anomaly_c": null, "aqi": null, "aqi_data_source": "unavailable", "fire_count_nearby": null}}},
+    {"id": "E03", "category": "E", "q": "Will it rain in Pune tomorrow?", "inject": {"tool": "get_weather_forecast", "result": {"status": "unavailable", "reason": "Open-Meteo rate limit reached (HTTP 429)", "days": []}}},
+    {"id": "E04", "category": "E", "q": "What's the air quality forecast for Kolkata this week?", "inject": {"tool": "get_air_quality_forecast", "result": {"status": "unavailable", "reason": "Upstream air-quality forecast unavailable", "days": []}}},
+    {"id": "E05", "category": "E", "q": "What's the wildfire risk near Los Angeles today?", "inject": {"tool": "get_wildfire_risk", "result": {"score": null, "category": null, "method": "rule_based_fire_danger_index", "inputs": {"temp_c": null, "humidity_pct": null, "wind_kmh": null, "ndvi": null}, "data_source": {"weather": "unavailable", "vegetation": "unavailable"}}}},
+    {"id": "E06", "category": "E", "q": "What's the weather like in Jaipur right now?", "inject": {"tool": "geocode_location", "result": {"error": "Geocoding service unavailable right now."}}}
+  ]
+}
